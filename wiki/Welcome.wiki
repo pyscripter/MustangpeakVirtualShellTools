@@ -13,4 +13,4 @@ You will also need the following all of the following components to compile Virt
 
 [https://code.google.com/p/mustangpeakeasylistview/ Mustangpeak EasyListview]
 
-[https://code.google.com/p/mustangpeakvirtualshelltools/ VirutalShellTools]
+[https://code.google.com/p/mustangpeakvirtualshelltools/ Mustangpeak VirutalShellTools]
