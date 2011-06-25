@@ -7,7 +7,8 @@ VirtualShellTools is a Delphi component that has been around for over 10 years a
 
 = Details =
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+You will also need the following components to compile VirtualShellTools
+
+[https://code.google.com/p/mustangpeakcommonlib/ Mustangpeak Common Library]
+
+[https://code.google.com/p/mustangpeakcommonlib/ Mustangpeak EasyListview]
