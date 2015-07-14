@@ -3725,10 +3725,10 @@ constructor TCustomVirtualExplorerTree.Create(AOwner: TComponent);
 var
   CF: VirtualTrees.TClipboardFormats;
 begin
-  {$IFNDEF VirtualTree_V5}
-  FInternalDataOffset := AllocateInternalDataArea( SizeOf(TNodeData)
-      + SizeOf(Cardinal)) + SizeOf(Cardinal);
-  {$ENDIF}
+//  {$IFNDEF VirtualTree_V5}
+//  FInternalDataOffset := AllocateInternalDataArea( SizeOf(TNodeData)
+//      + SizeOf(Cardinal)) + SizeOf(Cardinal);
+//  {$ENDIF}
   inherited;
   InitializeCriticalSection(FEnumLock);
   ContextMenuManager := TContextMenuManager.Create(Self);
@@ -3775,9 +3775,9 @@ begin
   RebuildRootNamespaceEndUpdate;
   {$IFDEF VirtualTree_V5}
   FInternalDataOffset := AllocateInternalDataArea( SizeOf(TNodeData));
-//  {$ELSE}
-//  FInternalDataOffset := AllocateInternalDataArea( SizeOf(TNodeData)
-//      + SizeOf(Cardinal)) + SizeOf(Cardinal);
+  {$ELSE}
+  FInternalDataOffset := AllocateInternalDataArea( SizeOf(TNodeData)
+      + SizeOf(Cardinal)) + SizeOf(Cardinal);
   {$ENDIF}
   FSortHelper := TShellSortHelper.Create;
   ControlState := ControlState - [csCreating];
