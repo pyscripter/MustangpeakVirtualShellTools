@@ -23,24 +23,12 @@ interface
 
 //{$DEFINE VIRTUALNOTIFYDEBUG}
 
-{$include Compilers.inc}
 {$include ..\Include\AddIns.inc}
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls,
   ShlObj, ShellAPI, ActiveX, ComObj,
-  {$IFNDEF COMPILER_6_UP}
-  Forms,
-  {$ENDIF}
   MPCommonObjects,
-  {$IFDEF TNTSUPPORT}
-  TntClasses,
-  {$ENDIF}
   VirtualResources,
   MPThreadManager, MPCommonUtilities;
 
@@ -360,7 +348,7 @@ type
     FChangeNotifier: TVirtualChangeNotifier;
     FSpecialFolderVirtualPIDLs: TCommonPIDLList;
     FSpecialFolderPhysicalPIDL: TCommonPIDLList;
-    FSpecialFolderPhysicalPath: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF};
+    FSpecialFolderPhysicalPath: TStringList;
 
   protected
     function ChangeInSpecialFolder(PIDL: PItemIDList): Integer;
@@ -370,7 +358,7 @@ type
 
     property SpecialFolderVirtualPIDLs: TCommonPIDLList read FSpecialFolderVirtualPIDLs write FSpecialFolderVirtualPIDLs;
     property SpecialFolderPhysicalPIDL: TCommonPIDLList read FSpecialFolderPhysicalPIDL write FSpecialFolderPhysicalPIDL;
-    property SpecialFolderPhysicalPath: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF} read FSpecialFolderPhysicalPath write FSpecialFolderPhysicalPath;
+    property SpecialFolderPhysicalPath: TStringList read FSpecialFolderPhysicalPath write FSpecialFolderPhysicalPath;
   public
     constructor Create(CreateSuspended: Boolean; AChangeNotifier: TVirtualChangeNotifier); reintroduce; virtual;
     destructor Destroy; override;
@@ -821,11 +809,7 @@ end;
 constructor TVirtualChangeNotifier.Create;
 begin
   ControlList := TThreadList.Create;
-  {$IFNDEF COMPILER_6_UP}
-  Listener := Forms.AllocateHWnd(ListenerWndProc);
-  {$ELSE}
   Listener := Classes.AllocateHWnd(ListenerWndProc);
-  {$ENDIF}
   InitializeCriticalSection(FSpecialFolderRegisterLock);
   PIDLMgr := TCommonPIDLManager.Create;
 end;
@@ -840,11 +824,7 @@ begin
     Assert(FChangeDispatchThread.RefCount = 0, S_SHELLNOTIFERDISPATCHTHREAD);
   ControlList.Free;
   if Listener <> 0 then
-    {$IFNDEF COMPILER_6_UP}
-    Forms.DeallocateHWnd(FListener);
-    {$ELSE}
     Classes.DeallocateHWnd(FListener);
-    {$ENDIF}
   inherited;
   DeleteCriticalSection(FSpecialFolderRegisterLock);
   PIDLMgr.Free;
@@ -1569,11 +1549,7 @@ begin
   KernelChangeEvent := CreateEvent(nil, True, False, nil);
   SpecialFolderVirtualPIDLs := TCommonPIDLList.Create;
   SpecialFolderPhysicalPIDL := TCommonPIDLList.Create;
-  {$IFDEF TNTSUPPORT}
-  SpecialFolderPhysicalPath := TTntStringList.Create;
-  {$ELSE}
   SpecialFolderPhysicalPath := TStringList.Create;
-  {$ENDIF}
 end;
 
 destructor TVirtualKernelChangeThread.Destroy;
@@ -1618,15 +1594,10 @@ procedure TVirtualKernelChangeThread.Execute;
           for i := 0 to SpecialFolderPhysicalPath.Count - 1 do
           begin
             if Win32Platform = VER_PLATFORM_WIN32_NT then
-              {$IFDEF TNTSUPPORT}
-              Result.Handles[HandleIndex] := FindFirstChangeNotificationW_MP(
-                PWideChar(SpecialFolderPhysicalPath[i]), False, Special)
-              {$ELSE}
               Result.Handles[HandleIndex] := FindFirstChangeNotificationW_MP(
                 PWideChar(WideString(SpecialFolderPhysicalPath[i])), False, Special)
-              {$ENDIF}
             else begin
-              S := SpecialFolderPhysicalPath[i];
+              S := AnsiString(SpecialFolderPhysicalPath[i]);
               Result.Handles[HandleIndex] := FindFirstChangeNotificationA(PAnsiChar(S), False, Special)
             end;
             if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then
@@ -1651,7 +1622,7 @@ procedure TVirtualKernelChangeThread.Execute;
                   Result.Handles[HandleIndex] := FindFirstChangeNotificationW_MP(PWideChar(ChangeControl.WatchFolder),
                     False, ChangeControl.MapNotifyEvents)
                 else begin
-                  S := ChangeControl.WatchFolder;
+                  S := AnsiString(ChangeControl.WatchFolder);
                   Result.Handles[HandleIndex] := FindFirstChangeNotificationA(PAnsiChar(S), False, ChangeControl.MapNotifyEvents)
                 end;
                 if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then

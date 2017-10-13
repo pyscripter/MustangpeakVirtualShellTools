@@ -28,31 +28,17 @@ interface
 
 {$include ..\Include\AddIns.inc}
 
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
-
 uses
   // < FR added 11-28-05 >
   // To allow customization of check images at runtime in the column dialog
   VirtualTrees,
   Forms,
-  {$IFDEF TNTSUPPORT}
-  TntStdCtrls,
-  TntClasses,
-  TntSysUtils,
-  TntMenus,
-  TntForms,
-  {$ELSE}
   StdCtrls,
   Classes,
   Menus,
-  {$ENDIF}
   // </ FR added 11-28-05 >
   Messages;
 
-{$include Compilers.inc}
 {$include ..\Include\AddIns.inc}
 
 const
@@ -76,19 +62,11 @@ const
 // and all this kind of stuff remain unmodified.
 
 type
-  {$IFDEF TNTSUPPORT}
-  TVirtualCustomEdit = TTntCustomEdit;
-  TVirtualPopupMenu = TTntPopupMenu;
-  TVirtualMenuItem = TTntMenuItem;
-  TVirtualFileStream = TTntFileStream;
-  TVirtualScrollBox = TTntScrollbox;
-  {$ELSE}
   TVirtualCustomEdit = TCustomEdit;
   TVirtualPopupMenu = TPopupMenu;
   TVirtualMenuItem = TMenuItem;
   TVirtualFileStream = TFileStream;
   TVirtualScrollBox = TScrollbox;
-  {$ENDIF}
 
 var
    S_WARNING: WideString = 'Warning';

@@ -21,21 +21,11 @@ unit VirtualShellAutoComplete;
 
 interface
 
-{$include Compilers.inc}
 {$include ..\Include\AddIns.inc}
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   ImgList, ShlObj, ShellAPI, ActiveX, ComObj, MPShellTypes,
-  {$IFDEF TNTSUPPORT}
-  TntClasses,
-  TntSysUtils, 
-  {$ENDIF}
   MPShellUtilities,
   MPCommonUtilities,
   MPCommonObjects;
@@ -66,12 +56,12 @@ type
   TCustomVirtualShellAutoComplete = class(TComponent)
   private
     FCurrentDir: WideString;
-    FStrings: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF};  
+    FStrings: TStringList;
     FContents: TAutoCompleteContents;
     FOnAutoCompleteAddItem: TVirtualAutoCompleteAddItem;
     FNamespaces: TVirtualNameSpaceList;
     FDirty: Boolean;
-    function GetStrings: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF};
+    function GetStrings: TStringList;
 
 
     procedure ReadCurrentDir(Reader: TReader);
@@ -92,7 +82,7 @@ type
     property CurrentDir: WideString read FCurrentDir write SetCurrentDir;
     property OnAutoCompleteAddItem: TVirtualAutoCompleteAddItem read FOnAutoCompleteAddItem write FOnAutoCompleteAddItem;
     property Namespaces: TVirtualNameSpaceList read FNamespaces write FNamespaces;
-    property Strings: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF} read GetStrings;
+    property Strings: TStringList read GetStrings;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -122,11 +112,7 @@ implementation
 constructor TCustomVirtualShellAutoComplete.Create(AOwner: TComponent);
 begin
   inherited;
-  {$IFDEF TNTSUPPORT}
-  FStrings := TTntStringList.Create;
-  {$ELSE}
   FStrings := TStringList.Create;
-  {$ENDIF}
   Contents := AutoCompleteDefault;
   Namespaces := TVirtualNameSpaceList.Create(True);
 end;
@@ -223,7 +209,7 @@ begin
       accHidden in FContents, EnumFolder, nil);
 end;
 
-function TCustomVirtualShellAutoComplete.GetStrings: {$IFDEF TNTSUPPORT}TTntStringList{$ELSE}TStringList{$ENDIF};
+function TCustomVirtualShellAutoComplete.GetStrings: TStringList;
 var
   i: integer;
 begin

@@ -21,13 +21,7 @@ unit VirtualCommandLine;
 
 interface
 
-{$include Compilers.inc}
 {$include ..\Include\AddIns.inc}
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, ImgList, ShlObj,

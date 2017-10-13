@@ -80,12 +80,6 @@ History:
 interface
 
 {$include ..\Include\AddIns.inc}
-{$include Compilers.inc}
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls,
@@ -318,9 +312,6 @@ uses
   TypInfo,
   {$ENDIF}
   Forms,
-  {$IFDEF TNTSUPPORT}
-  TntClasses, TntSysUtils,
-  {$ENDIF}
   VirtualTrees;
 
 {$IFDEF USE_TOOLBAR_TB2K}
@@ -610,11 +601,7 @@ procedure TBaseVirtualShellPersistent.FillPopupMenu(Popupmenu: TPopupMenu;
 var
   i: integer;
 begin
-  {$IFNDEF COMPILER_5_UP}
-  ClearMenuItems(Popupmenu);
-  {$ELSE}
   Popupmenu.Items.Clear;
-  {$ENDIF COMPILER_5_UP} 
   if Count > 0 then
   begin
     if FillDirection = fpdOldestToNewest then
@@ -942,7 +929,7 @@ begin
     if IsUnicode then
       DrawTextW_MP(ACanvas.handle, PWideChar(WS), lstrlenW(PWideChar(WS)), ARect, DT_SINGLELINE or DT_VCENTER)
     else begin
-      S := WS;
+      S := AnsiString(WS);
       DrawTextA(ACanvas.handle, PAnsiChar(S), Length(S), ARect, DT_SINGLELINE or DT_VCENTER)
     end;
     SetBkMode(ACanvas.Handle, OldMode);

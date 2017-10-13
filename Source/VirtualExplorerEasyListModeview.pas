@@ -24,14 +24,8 @@ interface
 {.$UNDEF USE_TOOLBAR_TB2K}
 
 {$I ..\Include\AddIns.inc}
-{$I Compilers.inc}
 {$B-}
 
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 {.$DEFINE GEXPERTS}
 
@@ -60,19 +54,8 @@ uses
   SpTBXItem,
   TB2Item,
   {$ENDIF}
-  {$IFDEF TNTSUPPORT}
-  TntStdCtrls,
-  TntForms,
-  {$ENDIF}
-  {$IFDEF COMPILER_7_UP}
   Themes,
   UxTheme,
-  {$ELSE}
-    {$IFDEF USETHEMES}
-    TmSchema,
-    UxTheme,
-    {$ENDIF}
-  {$ENDIF}
   EasyListview,
   MPThreadManager,
   VirtualResources,
@@ -628,6 +611,9 @@ type
   end;
 
 implementation
+
+uses
+  System.Types, System.UITypes;
 
 type
   TEasyListviewHack = class(TCustomEasyListview);

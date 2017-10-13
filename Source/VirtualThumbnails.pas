@@ -46,14 +46,8 @@ History:
 
 interface
 
-{$include Compilers.inc}
 {$include ..\Include\Addins.inc}
 {$BOOLEVAL OFF} // Unit depends on short-circuit boolean evaluation
-
-{$ifdef COMPILER_12_UP}
-  {$WARN IMPLICIT_STRING_CAST       OFF}
- {$WARN IMPLICIT_STRING_CAST_LOSS  OFF}
-{$endif COMPILER_12_UP}
 
 uses
   Windows,
@@ -68,9 +62,6 @@ uses
   Forms,
   Jpeg,
   MPShellUtilities,
-  {$IFDEF TNTSUPPORT}
-  TntClasses,
-  {$ENDIF}
   VirtualResources,
   MPShellTypes,
   MPCommonObjects,
@@ -156,18 +147,10 @@ type
     FInvalidCount: Integer;
     FThumbWidth: Integer;
     FThumbHeight: Integer;
-    {$IFDEF TNTSUPPORT}
-    FComments:  TTntStringList;
-    {$ELSE}
     FComments:  TStringList;
-    {$ENDIF}
     function GetCount: Integer;
   protected
-    {$IFDEF TNTSUPPORT}
-    FHeaderFilelist: TTntStringList; // OwnsObjects
-    {$ELSE}
     FHeaderFilelist: TStringList; // OwnsObjects
-    {$ENDIF}
     function DefaultStreamVersion: Integer; virtual;
   public
     constructor Create; virtual;
@@ -181,20 +164,12 @@ type
     function Read(Index: Integer; var OutThumbInfo: TThumbInfo): Boolean; overload;
     function Read(Index: Integer; OutBitmap: TBitmap): Boolean; overload;
     procedure LoadFromFile(const Filename: WideString); overload;
-    {$IFDEF TNTSUPPORT}
-    procedure LoadFromFile(const Filename: WideString; InvalidFiles: TTntStringList); overload;
-    {$ELSE}
     procedure LoadFromFile(const Filename: WideString; InvalidFiles: TStringList); overload;
-    {$ENDIF}
     procedure SaveToFile(const Filename: WideString);
     property Directory: WideString read FDirectory write FDirectory;
     property ThumbWidth: Integer read FThumbWidth write FThumbWidth;
     property ThumbHeight: Integer read FThumbHeight write FThumbHeight;
-    {$IFDEF TNTSUPPORT}
-    property Comments: TTntStringList read FComments;
-    {$ELSE}
     property Comments: TStringList read FComments;
-    {$ENDIF}
     property Count: Integer read GetCount;  // Count includes the deleted thumbs, ValidCount = Count - InvalidCount
     property InvalidCount: Integer read FInvalidCount;
     property LoadedFromFile: Boolean read FLoadedFromFile write FLoadedFromFile;
@@ -233,11 +208,7 @@ type
     procedure BeginUpdate;
     procedure EndUpdate;
     procedure DoOptionsChanged(ResetThread, Invalidate: Boolean); virtual;
-    {$IFDEF TNTSUPPORT}
-    function GetAlbumList(L: TTntStringList): Boolean;
-    {$ELSE}
     function GetAlbumList(L: TStringList): Boolean;
-    {$ENDIF}
     function GetAlbumFileToLoad(Dir: WideString): WideString;
     function GetAlbumFileToSave(Dir: WideString; AppendToAlbumList: Boolean): WideString;
     procedure FillImageFormats(FillColors: Boolean = True); virtual;
@@ -300,26 +271,13 @@ function SpGetGraphicClass(Filename: WideString): TGraphicClass;
 function SpLoadGraphicFile(Filename: WideString; outP: TPicture; CatchIncompleteJPGErrors: Boolean = True): Boolean;
 procedure SpPixelRotate(InOutB: TBitmap; Angle: Integer);
 procedure SpStretchDraw(G: TGraphic; ACanvas: TCanvas; DestR: TRect; UseSubsampling: Boolean);
-{$IFDEF USEIMAGEEN}
-function SpMakeThumbFromFileImageEn(Filename: WideString; OutBitmap: TBitmap; ThumbW, ThumbH: Integer;
-  BgColor: TColor; Subsampling, ExifThumbnail, ExifOrientation: Boolean; var ImageWidth, ImageHeight: Integer): Boolean;
-{$ENDIF}
 function SpMakeThumbFromFile(Filename: WideString; OutBitmap: TBitmap; ThumbW,
   ThumbH: Integer; BgColor: TColor; SubSampling, ExifThumbnail, ExifOrientation: Boolean;
   var ImageWidth, ImageHeight: Integer): Boolean;
 function SpCreateThumbInfoFromFile(NS: TNamespace; ThumbW, ThumbH: Integer;
   UseSubsampling, UseShellExtraction, UseExifThumbnail, UseExifOrientation: Boolean;
   BackgroundColor: TColor): TThumbInfo;
-{$IFDEF TNTSUPPORT}
-function SpReadExifThumbnail(FileName: WideString; Exif: TTntStringList): TJpegImage;
-{$ELSE}
-  {$IFDEF COMPILER_7_UP}
   function SpReadExifThumbnail(FileName: WideString; Exif: TStringList): TJpegImage;
-  {$ELSE}
-  function SpReadExifThumbnail(FileName: WideString; Exif: TStringListEx): TJpegImage;
-  {$ENDIF}
-{$ENDIF}
-
 
 { Stream helpers }
 function SpReadDateTimeFromStream(ST: TStream): TDateTime;
@@ -339,17 +297,7 @@ procedure SpConvertJPGStreamToBitmap(MS: TMemoryStream; OutBitmap: TBitmap);
 implementation
 
 uses
-  {$IFDEF USEGRAPHICEX} GraphicEx, {$ELSE}
-    {$IFDEF USEIMAGEEN} ImageEnIo, ImageEnProc, hyieutils, {$ELSE}
-      {$IFDEF USEIMAGEMAGICK} MagickImage, ImageMagickAPI, {$ENDIF}
-    {$ENDIF}
-  {$ENDIF}
-  {$IFDEF COMPILER_6_UP}
   Types,
-  {$ENDIF}
-  {$IFDEF TNTSUPPORT}
-  TntSysUtils,
-  {$ENDIF}
   Math;
 
 //WMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWM
@@ -502,19 +450,11 @@ begin
   Ext := WideLowercase(WideExtractFileExt(Filename));
   Delete(Ext, 1, 1);
 
-  {$IFDEF USEGRAPHICEX}
-  Result := GraphicEx.FileFormatList.GraphicFromExtension(Ext);
-  {$ELSE}
-    Result := nil;
-    if (Ext = 'jpg') or (Ext = 'jpeg') or (Ext = 'jif') then Result := TJpegImage
-    else if Ext = 'bmp' then Result := TBitmap
-    else if (Ext = 'wmf') or (Ext = 'emf') then Result := TMetafile
-    else if Ext = 'ico' then Result := TIcon;
-    {$IFDEF USEIMAGEMAGICK}
-    if Result = nil then
-      Result := MagickImage.MagickFileFormatList.GraphicFromExtension(Ext);
-    {$ENDIF}
-  {$ENDIF}
+  Result := nil;
+  if (Ext = 'jpg') or (Ext = 'jpeg') or (Ext = 'jif') then Result := TJpegImage
+  else if Ext = 'bmp' then Result := TBitmap
+  else if (Ext = 'wmf') or (Ext = 'emf') then Result := TMetafile
+  else if Ext = 'ico' then Result := TIcon;
 end;
 
 // Bug in Delphi 5:
@@ -667,189 +607,6 @@ begin
   end;
 end;
 
-{$IFDEF USEIMAGEEN}
-function SpMakeThumbFromFileImageEn(Filename: WideString; OutBitmap: TBitmap;
-  ThumbW, ThumbH: Integer; BgColor: TColor; Subsampling, ExifThumbnail, ExifOrientation: Boolean;
-  var ImageWidth, ImageHeight: Integer): Boolean;
-var
-  AttachedIEBitmap: TIEBitmap;
-  ImageEnIO: TImageEnIO;
-  ImageEnProc: TImageEnProc;
-  TempBitmap: TBitmap;
-  F: TVirtualFileStream;
-  DestR: TRect;
-  Ext: string;
-  IsRaw: Boolean;
-  Orientation: Integer;
-  dcraw: THandle;
-begin
-  Result := False;
-  ImageWidth := 0;
-  ImageHeight := 0;
-  Orientation := 0;
-  dcraw := GetModuleHandle('dcrawlib.dll');
-  if not Assigned(OutBitmap) then Exit;
-  Ext := WideLowerCase(WideExtractFileExt(Filename));
-
-  IsRaw := (ext = '.cr2') or (ext = '.crw') or (ext = '.dng')
-        or (ext = '.nef') or (ext = '.mrw') or (ext = '.orf')
-        or (ext = '.pef') or (ext ='.x3f') or (ext = '.kdc')
-        or (ext = '.srw') or (ext = '.arw') or (ext = '.bay')
-        or (ext = '.raw') or (ext = '.dcr') or (ext = '.mef')
-        or (ext = '.3fr') or (ext = '.k25') or (ext = '.cam')
-        or (ext = '.erf') or (ext = '.srf') or (ext = '.sr2')
-        or (ext = '.nrw') or (ext = '.mos') or (ext = '.dc2')
-        or (ext = '.raf') or (ext = '.rw2') or (ext = '.rwl');
-
-  TempBitmap := TBitmap.Create;
-  TempBitmap.Canvas.Lock;
-  try
-    AttachedIEBitmap := TIEBitmap.Create;
-    ImageEnIO := TImageEnIO.Create(nil);
-    ImageEnProc := TImageEnProc.Create(Nil);
-    try
-      ImageEnIO.AttachedIEBitmap := AttachedIEBitmap;
-      ImageEnProc.AttachedIEBitmap := AttachedIEBitmap;
-      ImageEnIO.Params.Width := ThumbW;
-      ImageEnIO.Params.Height := ThumbH;
-      ImageEnIO.Params.JPEG_Scale := ioJPEG_AUTOCALC;
-      ImageEnIO.Params.JPEG_DCTMethod := ioJPEG_IFAST;
-      if (dcraw <> 0) then
-        // Automatically adjust orientation of all files that contain EXIF info
-        ImageEnIO.Params.EnableAdjustOrientation := ExifOrientation;
-      // ImageEn bug: TImageEnIO.LoadFromStream doesn't work with wmf/emf/sun files
-      if (Ext = '.wmf') or (Ext = '.emf') or (Ext = '.sun') then
-      begin
-        ImageEnIO.LoadFromFile(Filename);
-        ImageWidth := ImageEnIO.Params.Width;
-        ImageHeight := ImageEnIO.Params.Height;
-        AttachedIEBitmap.CopyToTBitmap(TempBitmap);
-      end
-      else
-      begin
-        F := TVirtualFileStream.Create(Filename, fmOpenRead or fmShareDenyNone);
-        try
-          // If dcrawlib.dll is used
-          if IsRaw AND (dcraw <> 0) then
-          begin
-            ImageEnIO.Params.RAW_GetExifThumbnail := False;
-            // Do not load small thumbnails from file. They usually have black borders.
-            // Use the large size EXIF preview images instead, if they are available.
-            ImageEnIO.Params.RAW_ExtraParams := '-e';
-            // ImageEnBug: LoadFromStream doesn't work well on RAW files,
-            // it doesn't load the Exif thumbnails, use LoadFromStreamRAW instead
-            ImageEnIO.LoadFromStreamRAW(F);
-            // If no large size EXIF preview images are embedded, use the small thumbs instead
-            if (AttachedIEBitmap.Width = 0) OR (AttachedIEBitmap.Height = 0) then
-            begin
-              ImageEnIO.Params.RAW_GetExifThumbnail := True;
-              ImageEnIO.Params.RAW_ExtraParams := '';
-              ImageEnIO.LoadFromStreamRAW(F);
-            end;
-            if ExifOrientation then
-              if (ext = '.crw') then
-                Orientation := GetCrwOrientation(F) // CRW doesn't have Exif, read the CIFF data
-              else
-                Orientation := ImageEnIO.Params.EXIF_Orientation;
-            if (Orientation = 6) or (Orientation = 8) then
-              IEAdjustEXIFOrientation(AttachedIEBitmap, Orientation);
-            ImageWidth := AttachedIEBitmap.Width;
-            ImageHeight := AttachedIEBitmap.Height;
-          end
-          else
-          // If dcrawlib.dll is not used
-          if IsRaw AND (dcraw = 0) then
-          begin
-            ImageEnIO.Params.RAW_GetExifThumbnail := True;
-            ImageEnIO.LoadFromStreamRAW(F);
-            if ExifOrientation then
-              if (ext = '.crw') then
-                Orientation := GetCrwOrientation(F) // CRW doesn't have Exif, read the CIFF data
-              else
-                Orientation := ImageEnIO.Params.EXIF_Orientation;
-            if (Orientation = 6) or (Orientation = 8) then
-              IEAdjustEXIFOrientation(AttachedIEBitmap, Orientation);
-            ImageWidth := AttachedIEBitmap.Width;
-            ImageHeight := AttachedIEBitmap.Height;
-          end
-          else
-          // If it's not a digital camera RAW file
-          begin
-            ImageEnIO.Params.EnableAdjustOrientation := False;
-            ImageEnIO.Params.GetThumbnail := ExifThumbnail;
-            ImageEnIO.LoadFromStream(F);
-            Orientation := ImageEnIO.Params.EXIF_Orientation;
-            if (ExifOrientation = False) then
-            begin
-              case Orientation of
-                6: ImageEnProc.Rotate(90, false);
-                8: ImageEnProc.Rotate(270, false);
-              end;
-              if ImageEnIO.Params.JPEG_Scale_Used > 1 then
-              begin
-                ImageWidth := ImageEnIO.Params.JPEG_OriginalWidth;
-                ImageHeight := ImageEnIO.Params.JPEG_OriginalHeight;
-              end
-              else
-              begin
-                ImageWidth := ImageEnIO.Params.Width;
-                ImageHeight := ImageEnIO.Params.Height;
-              end;
-            end
-            else
-            begin
-              if ImageEnIO.Params.JPEG_Scale_Used > 1 then
-              begin
-                if (Orientation = 6) OR (Orientation = 8) then
-                begin
-                  // Width and Height of the EXIF thumbnail have been mixed up
-                  // somewhere. We need to correct this.
-                  ImageWidth := ImageEnIO.Params.JPEG_OriginalHeight;
-                  ImageHeight := ImageEnIO.Params.JPEG_OriginalWidth;
-                end
-                else
-                begin
-                  ImageWidth := ImageEnIO.Params.JPEG_OriginalWidth;
-                  ImageHeight := ImageEnIO.Params.JPEG_OriginalHeight;
-                end;
-              end
-              else
-              begin
-                ImageWidth := ImageEnIO.Params.Width;
-                ImageHeight := ImageEnIO.Params.Height;
-              end;
-            end;
-          end;
-          AttachedIEBitmap.CopyToTBitmap(TempBitmap);
-        finally
-          F.Free;
-        end;
-      end;
-    finally
-      ImageEnIO.Free;
-      ImageEnProc.Free;
-      AttachedIEBitmap.Free;
-    end;
-    // Resize the thumb
-    // Need to lock/unlock the canvas here
-    OutBitmap.Canvas.Lock;
-    try
-      DestR := SpRectAspectRatio(ImageWidth, ImageHeight, ThumbW, ThumbH, talNone, True);
-      SpInitBitmap(OutBitmap, DestR.Right, DestR.Bottom, BgColor);
-      // StretchDraw is NOT THREADSAFE!!! Use SpStretchDraw instead
-      SpStretchDraw(TempBitmap, OutBitmap.Canvas, DestR, Subsampling);
-      Result := True;
-    finally
-      OutBitmap.Canvas.UnLock;
-    end;
-    Result := True;
-  finally
-    TempBitmap.Canvas.Unlock;
-    TempBitmap.Free;
-  end;
-end;
-{$ENDIF}
-
 function SpMakeThumbFromFile(Filename: WideString; OutBitmap: TBitmap; ThumbW,
   ThumbH: Integer; BgColor: TColor; SubSampling, ExifThumbnail, ExifOrientation: Boolean;
   var ImageWidth, ImageHeight: Integer): Boolean;
@@ -859,16 +616,7 @@ var
   WMFScale: Single;
   DestR: TRect;
   Ext, S: string;
-  {$IFDEF TNTSUPPORT}
-  Exif: TTntStringList;
-  {$ELSE}
-    // Delphi 5-6 doesn't have ValueFromIndex, use TStringListEx instead of TStringList
-    {$IFDEF COMPILER_7_UP}
-    Exif: TStringList;
-    {$ELSE}
-    Exif: TStringListEx;
-    {$ENDIF}
-  {$ENDIF}
+  Exif: TStringList;
   HasExifThumb: Boolean;
   I, Orientation: Integer;
 begin
@@ -883,16 +631,7 @@ begin
   try
     // Try to load the EXIF thumbnail
     if ExifThumbnail and ((Ext = '.jpg') or (Ext = '.jpeg') or (Ext = '.jif')) or (Ext = '.jpe') then begin
-      {$IFDEF TNTSUPPORT}
-      Exif := TTntStringList.Create;
-      {$ELSE}
-        // Delphi 5-6 doesn't have ValueFromIndex, use TStringListEx instead of TStringList
-        {$IFDEF COMPILER_7_UP}
         Exif := TStringList.Create;
-        {$ELSE}
-        Exif := TStringListEx.Create;
-        {$ENDIF}
-      {$ENDIF}
       try
         J := SpReadExifThumbnail(Filename, Exif);
 
@@ -1030,23 +769,16 @@ begin
   begin
     ThumbnailExtracted := False;
     B := TBitmap.Create;
-    {$IFNDEF USEIMAGEEN}
     B.PixelFormat := pf32Bit; // Jim:  This needs to be done for images that use the Alpha Channel for Transparency
-    {$ENDIF}
     B.Canvas.Lock;
     try
       try
-        {$IFDEF USEIMAGEEN}
-        ThumbnailExtracted := SpMakeThumbFromFileImageEn(NS.NameForParsing, B, ThumbW, ThumbH,
-          clRed, UseSubsampling, UseExifThumbnail, UseExifOrientation, W, H);
-        {$ELSE}
         // Jim: Changed the Background so images that use the Alpha Channel for Transparency work correctly
         ThumbnailExtracted := SpMakeThumbFromFile(NS.NameForParsing, B, ThumbW, ThumbH,
           BackgroundColor, UseSubsampling, UseExifThumbnail, UseExifOrientation, W, H);
         // Jim:  This needs to be done for images that use the Alpha Channel for Transparency
         if ThumbnailExtracted and UsesAlphaChannel(B) then
           ConvertBitmapEx(B, B, BackgroundColor);
-        {$ENDIF}
       except
         // Don't raise any image errors
       end;
@@ -1063,16 +795,7 @@ begin
   end;
 end;
 
-{$IFDEF TNTSUPPORT}
-function SpReadExif(F: TVirtualFileStream; Exif: TTntStringList; var Ofs: LongWord): Boolean;
-{$ELSE}
-  // Delphi 5-6 doesn't have ValueFromIndex, use TStringListEx instead of TStringList
-  {$IFDEF COMPILER_7_UP}
-  function SpReadExif(F: TVirtualFileStream; Exif: TStringList; var Ofs: LongWord): Boolean;
-  {$ELSE}
-  function SpReadExif(F: TVirtualFileStream; Exif: TStringListEx; var Ofs: LongWord): Boolean;
-  {$ENDIF}
-{$ENDIF}
+function SpReadExif(F: TVirtualFileStream; Exif: TStringList; var Ofs: LongWord): Boolean;
 var
   W: Word;
   L, ExifMarker_Offset, IFD1_Offset, IFD_Exif_Offset, dummy: LongWord;
@@ -1125,12 +848,12 @@ var
     Offset := Offset + 12; // 12 is the "tag record size"
     if Offset >= F.Size then Exit;
 
-    F.Seek(Offset, soFromBeginning);
+    F.Seek(Offset, soBeginning);
 
     readit(Count); // Number of entries
     if Count > 128 then
       Exit;
-    
+
     for I := 0 to Count - 1 do begin
       MyPos := F.Position;
       readit(MyTag);   // Tag
@@ -1146,9 +869,9 @@ var
           2: // ASCII
             begin
               if MyCount <= 4 then
-                F.Seek(MyPos + 8, soFromBeginning)
+                F.Seek(MyPos + 8, soBeginning)
               else
-                F.Seek(ExifMarker_Offset + MyValue, soFromBeginning);
+                F.Seek(ExifMarker_Offset + MyValue, soBeginning);
               S := ReadString(MyCount);
             end;
           3: // Short
@@ -1158,13 +881,13 @@ var
               // in this section they are stored in the
               // Value/Offset area
               if MyCount <= 2 Then
-                F.Seek(MyPos + 8, soFromBeginning)
+                F.Seek(MyPos + 8, soBeginning)
               else
-                F.Seek(ExifMarker_Offset + MyValue, soFromBeginning);
+                F.Seek(ExifMarker_Offset + MyValue, soBeginning);
               for Cnt2 := 1 To MyCount do begin
                 if S <> '' then S := S + ',';
                 readit(W);
-                S := S + IntToStr(W);
+                S := S + AnsiString(IntToStr(W));
               end;
             end;
           4: // Long
@@ -1174,13 +897,13 @@ var
               // in this section they are stored in the
               // Value/Offset area
               if MyCount <= 1 Then
-                S := IntToStr(MyValue)
+                S := AnsiString(IntToStr(MyValue))
               else begin
-                F.Seek(ExifMarker_Offset + MyValue, soFromBeginning);
+                F.Seek(ExifMarker_Offset + MyValue, soBeginning);
                 for Cnt2 := 1 To MyCount do begin
                   if S <> '' Then S := S + ',';
                   readit(L);
-                  S := S + IntToStr(L);
+                  S := S + AnsiString(IntToStr(L));
                 end;
               end;
             end;
@@ -1189,7 +912,7 @@ var
         Exif.Add(Format('$%x=%s', [MyTag, S]))
       end;
 
-      F.Seek(MyPos + 12, soFromBeginning); // The 12 is the "tag record size"
+      F.Seek(MyPos + 12, soBeginning); // The 12 is the "tag record size"
     end;
   end;
 
@@ -1221,7 +944,7 @@ begin
     end;
 
     readit(W);
-    S := ReadString(4);
+    S := string(ReadString(4));
     if S <> 'Exif' then Exit;
     readit(W);
     if W <> $0000 then Exit;
@@ -1250,16 +973,7 @@ begin
   end;
 end;
 
-{$IFDEF TNTSUPPORT}
-function SpReadExifThumbnail(FileName: WideString; Exif: TTntStringList): TJpegImage;
-{$ELSE}
-  // Delphi 5-6 doesn't have ValueFromIndex, use TStringListEx instead of TStringList
-  {$IFDEF COMPILER_7_UP}
-  function SpReadExifThumbnail(FileName: WideString; Exif: TStringList): TJpegImage;
-  {$ELSE}
-  function SpReadExifThumbnail(FileName: WideString; Exif: TStringListEx): TJpegImage;
-  {$ENDIF}
-{$ENDIF}
+function SpReadExifThumbnail(FileName: WideString; Exif: TStringList): TJpegImage;
 
   function CorrectThumbnailBuffer(ThumbBuffer: String): String;
   var
@@ -1340,7 +1054,7 @@ begin
     end;
 
     if (ThumbOffset > 0) and (ThumbSize > 0) then begin
-      F.Seek(Ofs + ThumbOffset + 12, soFromBeginning);
+      F.Seek(Ofs + ThumbOffset + 12, soBeginning);
       StringStream := TStringStream.Create('');
       try
         StringStream.CopyFrom(F, ThumbSize);
@@ -1749,13 +1463,8 @@ end;
 
 constructor TThumbAlbum.Create;
 begin
-  {$IFDEF TNTSUPPORT}
-  FHeaderFilelist := TTntStringList.Create;  // OwnsObjects
-  FComments := TTntStringList.Create;
-  {$ELSE}
   FHeaderFilelist := TStringList.Create;  // OwnsObjects
   FComments := TStringList.Create;
-  {$ENDIF}
 
   Clear;
 end;
@@ -1890,11 +1599,7 @@ begin
   end;
 end;
 
-{$IFDEF TNTSUPPORT}
-procedure TThumbAlbum.LoadFromFile(const Filename: WideString; InvalidFiles: TTntStringList);
-{$ELSE}
 procedure TThumbAlbum.LoadFromFile(const Filename: WideString; InvalidFiles: TStringList);
-{$ENDIF}
 var
   AuxThumbAlbum: TThumbAlbum;
   T, TCopy: TThumbInfo;
@@ -2069,62 +1774,11 @@ procedure TCustomThumbsManager.FillImageFormats(FillColors: Boolean = True);
 var
   I: Integer;
   Ext: WideString;
-{$IFDEF USEGRAPHICEX}
-  L: TStringList;
-{$ELSE}
-  {$IFDEF USEIMAGEMAGICK}
-     L: TStringList;
-  {$ENDIF}
-{$ENDIF}
 begin
   FValidImageFormats.Clear;
-  {$IFDEF USEGRAPHICEX}
-  L := TStringList.Create;
-  try
-    FileFormatList.GetExtensionList(L);
-    FValidImageFormats.DeleteString('ico'); // Don't add ico
-    FValidImageFormats.AddStrings(L);
-  finally
-    L.Free;
-  end;
-  {$ELSE}
-  {$IFDEF USEIMAGEMAGICK}
-  L := TStringList.Create;
-  try
-    if Assigned(MagickFileFormatList) then begin
-      MagickFileFormatList.GetExtensionList(L);
-      FExtensionsList.AddStrings(L);
-      FValidImageExtensions.DeleteString('ico'); // Don't add ico
-      FExtensionsList.DeleteString('pdf'); // TODO -cImageMagick : Stack overflow exception in TMagickImage.LoadFromStream, MagickImage.pas line 744
-      FExtensionsList.DeleteString('txt'); // TODO -cImageMagick : 'Stream size must be defined' exception in TMagickImage.LoadFromStream (ASize <= 0), line 728
-      FExtensionsList.DeleteString('avi'); // TODO -cImageMagick : infinite loop in BlobToImage: Trace: TMagickImage.LoadFromStream -> StreamToImage -> BlobToImage.
-      FExtensionsList.DeleteString('mpg'); // TODO -cImageMagick : 'Stream size must be defined' exception in TMagickImage.LoadFromStream (ASize <= 0), line 728
-      FExtensionsList.DeleteString('mpeg'); // TODO -cImageMagick : 'Stream size must be defined' exception in TMagickImage.LoadFromStream (ASize <= 0), line 728
-      FExtensionsList.DeleteString('htm'); // TODO -cImageMagick : delegate not supported
-      FExtensionsList.DeleteString('html'); // TODO -cImageMagick : delegate not supported
-    end;
-  finally
-    L.Free;
-  end;
-  {$ELSE}
   with FValidImageFormats do begin
     CommaText := '.jpg, .jpeg, .jif, .bmp, .emf, .wmf';
-    {$IFDEF USEIMAGEEN}
-    CommaText := CommaText + ', .png, .pcx, .dcx, .tif, .tiff, .fax, .g3n, .g3f, .gif, .dib, .rle' +
-      ', .tga, .targa, .vda, .icb, .vst, .pix, .jp2, .j2k, .jpc, .j2c' +
-      ', .crw, .cr2, .nef, .raw, .pef, .raf, .x3f, .bay, .orf, .srf, .mrw, .dcr' +
-      ', .avi, .mpeg, .mpg, .wmv';
-    {$ELSE}
-    {$IFDEF USEENVISION}
-      //version 1.1
-      CommaText := CommaText + ', .png, .pcx, .pcc, .tif, .tiff, .dcx, .tga, .vst, .afi';
-      //version 2.0, eps (Encapsulated Postscript) and jp2 (JPEG2000 version)
-      //CommaText := CommaText + ', .eps, .jp2'; <<<<<<< still in beta
-    {$ENDIF}
-    {$ENDIF}
   end;
-  {$ENDIF}
-  {$ENDIF}
 
   if FillColors then begin
     for I := 0 to FValidImageFormats.Count - 1 do begin
@@ -2160,7 +1814,7 @@ begin
   if Assigned(NS) then begin
     Ext := WideExtractFileExt(NS.NameForParsing);
     if FInvalidImageFormats.IndexOf(Ext) = -1 then
-      if (FValidImageFormats.IndexOf(Ext) > -1) {$IFDEF USEIMAGEEN}or IsKnownFormat(Ext){$ENDIF} then
+      if (FValidImageFormats.IndexOf(Ext) > -1) then
         Result := vffValid
       else
         if UseShellExtraction or (UseFoldersShellExtraction and NS.Folder) then
@@ -2168,11 +1822,7 @@ begin
   end;
 end;
 
-{$IFDEF TNTSUPPORT}
-function TCustomThumbsManager.GetAlbumList(L: TTntStringList): Boolean;
-{$ELSE}
 function TCustomThumbsManager.GetAlbumList(L: TStringList): Boolean;
-{$ENDIF}
 var
   S: WideString;
 begin
@@ -2192,11 +1842,7 @@ end;
 
 function TCustomThumbsManager.GetAlbumFileToLoad(Dir: WideString): WideString;
 var
-  {$IFDEF TNTSUPPORT}
-  L: TTntStringList;
-  {$ELSE}
   L: TStringList;
-  {$ENDIF}
 begin
   Result := '';
   if Dir <> '' then begin
@@ -2207,11 +1853,7 @@ begin
           Result := Dir + FStorageFilename;
       tasRepository:
         if FStorageRepositoryFolder <> '' then begin
-          {$IFDEF TNTSUPPORT}
-          L := TTntStringList.Create;
-          {$ELSE}
           L := TStringList.Create;
-          {$ENDIF}
           try
             if GetAlbumList(L) then begin
               Result := L.Values[Dir];
@@ -2230,11 +1872,7 @@ function TCustomThumbsManager.GetAlbumFileToSave(Dir: WideString; AppendToAlbumL
 var
   F: WideString;
   I: Integer;
-  {$IFDEF TNTSUPPORT}
-  L: TTntStringList;
-  {$ELSE}
   L: TStringList;
-  {$ENDIF}
 begin
   Result := '';
   if Dir <> '' then begin
@@ -2245,11 +1883,7 @@ begin
           Result := Dir + FStorageFilename;
       tasRepository:
         if (FStorageRepositoryFolder <> '') and (WideDirectoryExists(FStorageRepositoryFolder) or WideCreateDir(FStorageRepositoryFolder)) then begin
-          {$IFDEF TNTSUPPORT}
-          L := TTntStringList.Create;
-          {$ELSE}
           L := TStringList.Create;
-          {$ENDIF}
           try
             if GetAlbumList(L) then
               Result := L.Values[Dir];
