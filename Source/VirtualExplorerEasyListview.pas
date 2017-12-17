@@ -93,8 +93,8 @@ uses
     ColumnFormTBX,
     {$ELSE}
       ColumnForm,
-      {$ENDIF}
     {$ENDIF}
+  {$ENDIF}
   EasyListview,
   {$IFDEF USE_TOOLBAR_TB2K}
   TB2Item,
@@ -8104,7 +8104,7 @@ begin
         Item := Selection.Next(Item) as TVirtualDropStackItem;
       end;
       ShellIDList.AssignPIDLs(APIDLList);
-         HDrop.AssignFilesA(FileListA);
+      HDrop.AssignFilesA(FileListA);
       DataObj := TEasyDataObjectManager.Create;
       DataObject := DataObj as IDataObject;
       DataObj.Listview := Self;
@@ -8376,7 +8376,7 @@ var
 begin
   Result := nil;
   // Ext := ExtractFileExt(FileName);
-  i := 0;
+   i := 0;
   // Do exhaustive search until decide it is a bottleneck then do binary search
   while not Assigned(Result) and (i < ItemList.Count) do
   begin

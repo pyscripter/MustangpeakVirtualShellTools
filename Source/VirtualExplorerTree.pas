@@ -2929,8 +2929,8 @@ uses
     ColumnFormTBX,
     {$ELSE}
       ColumnForm,
-      {$ENDIF}
     {$ENDIF}
+  {$ENDIF}
   Imm;
 
  {$R VirtualExplorerTreeExt.res}
@@ -4286,7 +4286,7 @@ begin
       if Result = nil then
         Result := SmallSysImages;
       if not NS.ThreadedIconLoaded and ThreadedImagesEnabled and not (csDesigning in ComponentState) then
-    begin
+      begin
         if (Kind = ikNormal) or (Kind = ikSelected) then
         begin
           if not NS.ThreadIconLoading then
