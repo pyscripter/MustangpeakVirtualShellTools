@@ -150,8 +150,7 @@ uses
   Types,
   UITypes,
   UxTheme,
-  VirtualTrees.StyleHooks,
-  EasyListview;  // Windows XP themes support for D5-D6. Get these units from www.delphi-gems.com.
+  VirtualTrees.StyleHooks;
 
 {*******************************************************************************}
 {  VET Declarations                                                             }
