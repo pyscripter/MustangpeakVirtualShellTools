@@ -47,16 +47,9 @@ History:
 
 interface
 
-{.$DEFINE TNTSUPPORT}
-
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   Dialogs, ShlObj, VirtualTrees, VirtualExplorerTree, MPShellUtilities,
-  {$IFDEF TNTSUPPORT}
-  TntClasses,
-  TntSysUtils,
-  TntWideStrings,
-  {$ENDIF}
   FileCtrl,
   VirtualResources,
   MPCommonObjects,
@@ -104,15 +97,9 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    {$IFDEF TNTSUPPORT}
-    procedure GetCheckedFileNames(AStrings: TWideStrings; AllChecked: Boolean = False);
-    procedure SetCheckedFileNames(AStrings: TWideStrings);
-    procedure GetResolvedFileNames(AStrings: TWideStrings);
-    {$ELSE}
     procedure GetCheckedFileNames(AStrings: TStrings; AllChecked: Boolean = False);
     procedure SetCheckedFileNames(AStrings: TStrings);
-    procedure GetResolvedFileNames(AStrings: TStrings); 
-    {$ENDIF}
+    procedure GetResolvedFileNames(AStrings: TStrings);
     function SyncCheckedNode(CheckedOnTree: boolean; SourceNode: PVirtualNode): boolean;
     procedure UpdateListView;
   published
@@ -130,11 +117,7 @@ function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: WideString;
   StartingPoint: PVirtualNode = nil): PVirtualNode;
 
 function CheckStateTrack(Node: PVirtualNode): TCheckState;
-{$IFDEF TNTSUPPORT}
-procedure GetCheckedFileNames(VET: TCustomVirtualExplorerTree; AStrings: TWideStrings; AllChecked: Boolean = False); 
-{$ELSE}
-procedure GetCheckedFileNames(VET: TCustomVirtualExplorerTree; AStrings: TStrings; AllChecked: Boolean = False); 
-{$ENDIF}
+procedure GetCheckedFileNames(VET: TCustomVirtualExplorerTree; AStrings: TStrings; AllChecked: Boolean = False);
 
 procedure ManualCheck(PIDL: PItemIDList; RootStorage: TRootNodeStorage; CheckType: TCheckType; CheckState: TCheckState); overload;
 procedure ManualCheck(VET: TCustomVirtualExplorerTree; Node: PVirtualNode; CheckType: TCheckType; CheckState: TCheckState); overload;
@@ -202,12 +185,7 @@ function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: WideString;
 var
   N: PVirtualNode;
   I: integer;
-  {$IFDEF TNTSUPPORT}
-  L: TTntStringList;
-  {$ELSE}
   L: TStringList;
-  {$ENDIF}
-
   WS: WideString;
 begin
   Result := nil;
@@ -216,11 +194,7 @@ begin
   if not Assigned(StartingPoint) then
     StartingPoint := VET.FindNodeByPIDL(DrivesFolder.AbsolutePIDL); //default to MyComputer
 
-  {$IFDEF TNTSUPPORT}
-  L := TTntStringList.Create;
-  {$ELSE}
   L := TStringList.Create;
-  {$ENDIF}
   try
     //Parse the Filename and get the list of drive/folders/file that compose the Filename
     WS := Filename;
@@ -288,25 +262,6 @@ begin
       Result := csMixedNormal;
 end;
 
-{$IFDEF TNTSUPPORT}
-procedure GetCheckedFileNames(VET: TCustomVirtualExplorerTree; AStrings: TWideStrings; AllChecked: Boolean = False);
-  procedure RecurseInit(Node: PVirtualNode);
-  //Checks and initializes all the required nodes on the tree
-  begin
-    while Assigned(Node) do
-    begin
-      if Node.ChildCount > 0 then
-        RecurseInit(Node.FirstChild);
-      if Node.CheckState = csCheckedNormal then
-        ManualTristateTrack(VET, nil, Node.Parent, false, true, AllChecked); //update childs
-      Node := Node.NextSibling;
-    end;
-  end;
-begin
-  RecurseInit(VET.GetFirst);
-  AStrings.Assign(VET.Storage.CheckedFileNames);
-end;
-{$ELSE}
 procedure GetCheckedFileNames(VET: TCustomVirtualExplorerTree; AStrings: TStrings; AllChecked: Boolean = False);
   procedure RecurseInit(Node: PVirtualNode);
   //Checks and initializes all the required nodes on the tree
@@ -324,8 +279,6 @@ begin
   RecurseInit(VET.GetFirst);
   AStrings.Assign(VET.Storage.CheckedFileNames);
 end;
-{$ENDIF}
-
 
 procedure ManualCheck(PIDL: PItemIDList; RootStorage: TRootNodeStorage;
   CheckType: TCheckType; CheckState: TCheckState);
@@ -738,35 +691,6 @@ begin
   end;
 end;
 
-{$IFDEF TNTSUPPORT}
-procedure TVirtualCheckboxesSynchronizer.SetCheckedFileNames(AStrings: TWideStrings);
-var
-  I: integer;
-  Node: PVirtualNode;
-begin
-  if not Assigned(FTree) then Exit;
-
-  FTree.BeginUpdate;
-  try
-    //Clear all checked nodes, and clear the storage
-    FTree.GetFirst.CheckState := csUncheckedNormal;
-    SyncCheckedNode(True, FTree.GetFirst);
-
-    //Iterate the checked files list
-    for i := 0 to AStrings.Count - 1 do
-    begin
-      Node := FindNodeByFilename(FTree, AStrings[I]);
-      if Assigned(Node) then
-      begin
-        Node.CheckState := csCheckedNormal;
-        SyncCheckedNode(True, Node);
-      end;
-    end;
-  finally
-    FTree.EndUpdate;
-  end;
-end;
-{$ELSE}
 procedure TVirtualCheckboxesSynchronizer.SetCheckedFileNames(AStrings: TStrings);
 var
   I: integer;
@@ -794,32 +718,16 @@ begin
     FTree.EndUpdate;
   end;
 end;
-{$ENDIF}
 
-
-{$IFDEF TNTSUPPORT}
-procedure TVirtualCheckboxesSynchronizer.GetCheckedFileNames(AStrings: TWideStrings; AllChecked: Boolean = False);
-begin
-  VirtualCheckboxesSynchronizer.GetCheckedFileNames(FTree, AStrings, AllChecked);
-end;
-{$ELSE}
 procedure TVirtualCheckboxesSynchronizer.GetCheckedFileNames(AStrings: TStrings; AllChecked: Boolean = False);
 begin
   VirtualCheckboxesSynchronizer.GetCheckedFileNames(FTree, AStrings, AllChecked);
 end;
-{$ENDIF}
 
-{$IFDEF TNTSUPPORT}
-procedure TVirtualCheckboxesSynchronizer.GetResolvedFileNames(AStrings: TWideStrings);
-begin
-  AStrings.Assign(FTree.Storage.ResolvedFileNames);
-end;
-{$ELSE}
 procedure TVirtualCheckboxesSynchronizer.GetResolvedFileNames(AStrings: TStrings);
 begin
   AStrings.Assign(FTree.Storage.ResolvedFileNames);
 end;
-{$ENDIF}
 
 
 end.

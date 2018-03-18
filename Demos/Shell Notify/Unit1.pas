@@ -10,9 +10,6 @@ uses
   StdCtrls, VirtualExplorerTree, VirtualTrees, ExtCtrls, Menus, ShlObj,
   VirtualShellNewMenu, MPShellUtilities, VirtualShellNotifier,
   ToolWin, VirtualShellToolBar, VirtualResources,
-  {$IFDEF TNTSUPPORT}
-  TntSysUtils, TntClasses,
-  {$ENDIF}
   MPCommonUtilities,
   MPShellTypes,
   ComCtrls;
