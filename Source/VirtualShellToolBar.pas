@@ -4341,7 +4341,11 @@ var
   StgMedium: TStgMedium;
   Stream: IStream;
   BytesRead: LongInt;
+  {$if CompilerVersion < 29}
+  NewPos: LargeInt;
+  {$else}
   NewPos: uint64;
+  {$endif}
   LocalPIDLSize: integer;
   Malloc: IMalloc;
 begin
@@ -4365,7 +4369,11 @@ var
   StgMedium: TStgMedium;
   hMem: THandle;
   Stream: IStream;
+  {$if CompilerVersion < 29}
+  NewPos: LargeInt;
+  {$else}
   NewPos: uint64;
+  {$endif}
   Int: integer;
   BytesWritten: LongInt;
 begin

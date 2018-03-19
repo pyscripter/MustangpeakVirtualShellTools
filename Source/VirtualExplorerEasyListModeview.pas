@@ -2742,12 +2742,10 @@ begin
           CurrentSkin.PaintBackground(BackBits.Canvas, R, skncHeader, sknsNormal, True, True);
         end else
        {$ENDIF SpTBX}
-       {$IFDEF USETHEMES}
         if Themed then
         begin
           DrawThemeBackground(Themes.HeaderTheme, BackBits.Canvas.Handle, HP_HEADERITEM, HIS_NORMAL, R, nil);
         end else
-        {$ENDIF USETHEMES}
         begin
           BackBits.Canvas.Brush.Color := Attribs.Color;
           BackBits.Canvas.FillRect(R);
@@ -2761,30 +2759,25 @@ begin
 
           BackBits.Canvas.Brush.Style := bsClear;
           NS := ColumnModeView.ViewNamespace(i);
-          {$IFDEF USETHEMES}
-            {$IFDEF SpTBX}
-            if not Themed or (SkinManager.CurrentSkinName <> 'Default') then
-            {$ELSE}
-            if not Themed then
-            {$ENDIF SpTBX}
-            begin
-              if ColumnModeView.Views[i] = ColumnModeView.FocusedView then
-              begin
-                R.Right := R.Right + ColumnModeView.ViewSplitter(i).Width;
-                {$IFDEF SpTBX}
-                CurrentSkin.PaintBackground(BackBits.Canvas, R, skncHeader, sknsHotTrack, True, False);
-                 {$ENDIF SpTBX}
-                R.Right := R.Right - ColumnModeView.ViewSplitter(i).Width;
-              end;
-
-              BackBits.Canvas.Brush.Style := bsClear;
-              if Assigned(NS) and ColumnModeView.Views[i].Active then
-                DrawTextWEx(BackBits.Canvas.Handle, NS.NameNormal, R, DrawTextFlags, 1);
-            end;
+          {$IFDEF SpTBX}
+          if not Themed or (SkinManager.CurrentSkinName <> 'Default') then
           {$ELSE}
-          if Assigned(NS) and ColumnModeView.Views[i].Active then
-            DrawTextWEx(BackBits.Canvas.Handle, NS.NameNormal, R, DrawTextFlags, 1);
-          {$ENDIF USETHEMES}
+          if not Themed then
+          {$ENDIF SpTBX}
+          begin
+            if ColumnModeView.Views[i] = ColumnModeView.FocusedView then
+            begin
+              R.Right := R.Right + ColumnModeView.ViewSplitter(i).Width;
+              {$IFDEF SpTBX}
+              CurrentSkin.PaintBackground(BackBits.Canvas, R, skncHeader, sknsHotTrack, True, False);
+               {$ENDIF SpTBX}
+              R.Right := R.Right - ColumnModeView.ViewSplitter(i).Width;
+            end;
+
+            BackBits.Canvas.Brush.Style := bsClear;
+            if Assigned(NS) and ColumnModeView.Views[i].Active then
+              DrawTextWEx(BackBits.Canvas.Handle, NS.NameNormal, R, DrawTextFlags, 1);
+          end;
 
           R.Right := R.Right + ColumnModeView.ViewSplitter(i).Width;
           {$IFDEF SpTBX}
@@ -2801,7 +2794,6 @@ begin
             CurrentSkin.PaintBackground(BackBits.Canvas, R, skncSeparator, sknsNormal, True, True)
           else
           {$ENDIF}
-          {$IFDEF USETHEMES}
           if Themed then
           begin
             R.Left := R.Right - ColumnModeView.Views[i].Width - ColumnModeView.ViewSplitter(i).Width;
@@ -2813,7 +2805,6 @@ begin
             if Assigned(NS) and ColumnModeView.Views[i].Active then
               DrawThemeText(Themes.HeaderTheme, BackBits.Canvas.Handle, HP_HEADERITEM, HIS_NORMAL, PWideChar( NS.NameNormal), -1, DT_CENTER or DT_VCENTER or DT_SINGLELINE or DT_END_ELLIPSIS, 0, R);
           end else
-          {$ENDIF USETHEMES}
           begin
             if Attribs.Flat then
               DrawEdge(BackBits.Canvas.Handle, R, EDGE_ETCHED, BF_RECT)

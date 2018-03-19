@@ -61,7 +61,7 @@ uses
   MPShellTypes,
   MPDataObject,
   Themes,
-  UxTheme;  // Windows XP themes support for D5-D6. Get these units from www.delphi-gems.com.
+  UxTheme;
 
 
 const
@@ -403,10 +403,9 @@ end;
 
 procedure TCustomVirtualBreadCrumbBar.CalcThemedNCSize(var ContextRect: TRect);
 begin
-  {$IFDEF USETHEMES}
-  if Succeeded(GetThemeBackgroundContentRect(Themes.EditThemeTheme, Canvas.Handle, LVP_EMPTYTEXT, LIS_NORMAL, ContextRect, @ContextRect)) then
-    InflateRect(ContextRect, -(BorderWidth), -(BorderWidth));
-  {$ENDIF USETHEMES}
+  if UseThemes then
+    if Succeeded(GetThemeBackgroundContentRect(Themes.EditThemeTheme, Canvas.Handle, LVP_EMPTYTEXT, LIS_NORMAL, ContextRect, @ContextRect)) then
+      InflateRect(ContextRect, -(BorderWidth), -(BorderWidth));
 end;
 
 procedure TCustomVirtualBreadCrumbBar.CreateWnd;
@@ -526,20 +525,16 @@ begin
 end;
 
 procedure TCustomVirtualBreadCrumbBar.PaintThemedNCBkgnd(ACanvas: TCanvas; ARect: TRect);
-{$IFDEF USETHEMES}
 var
   R: TRect;
-{$ENDIF USETHEMES}
 begin
-  {$IFDEF USETHEMES}
-  if ShowThemedBorder then
+  if UseThemes and ShowThemedBorder then
   begin
     R := Rect(0, 0, 0, 0);
     GetThemeBackgroundExtent(Themes.EditThemeTheme, ACanvas.Handle, LVP_EMPTYTEXT, LIS_NORMAL, ARect, R);
     InflateRect(ARect, R.Left - ARect.Left, R.Top - ARect.Top);
     DrawThemeBackground(Themes.EditThemeTheme, ACanvas.Handle, LVP_EMPTYTEXT, LIS_NORMAL, ARect, nil);
   end
-  {$ENDIF USETHEMES}
 end;
 
 procedure TCustomVirtualBreadCrumbBar.ParsePath;

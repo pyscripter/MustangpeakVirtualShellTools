@@ -319,6 +319,7 @@ begin
   inherited Create(AOwner);
   SearchResults := TCommonPIDLList.Create;
   Timer := TTimer.Create(Self);
+  Timer.Enabled := False;
   Timer.OnTimer := TimerTick;
   SearchPaths := TStringList.Create;
   SearchCriteriaFilename := TStringList.Create;
