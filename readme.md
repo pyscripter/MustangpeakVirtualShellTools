@@ -6,7 +6,8 @@ MustangpeakVirtualShellTools
 The Mustangpeak library for Delphi and C++Builder was developed by **Jim Kueneman**
 and contains the EasyListView and the VirutalShellExplorer components.
 Mustangpeak VirtualShellTools provides Windows Explorer style shell treeview and list view 
-components for Delphi and C++Builder applications..
+components for Delphi and C++Builder applications.  The main component TVirtualExplorerTree
+is a VirtualStringTree decsendant and is VCL Styles and DPI-aware enabled.
 
 This is a source-only release of MustangpeakVirtualShellTools. It includes
 designtime and runtime packages for Delphi and CBuilder and supports 
@@ -26,8 +27,9 @@ MustangpeakVirtualShellTools package names have the following form:
 To install MustangpeakVirtualShellTools into your IDE, take the following
 steps:
 
-  1. Install first [MustangpeakCommonLib](https://github.com/pyscripter/MustangpeakCommonLib) and
-    [MustangpeakEasyListView](https://github.com/pyscripter/MustangpeakEasyListView).
+  1. Install first [MustangpeakCommonLib](https://github.com/pyscripter/MustangpeakCommonLib),
+    [MustangpeakEasyListView](https://github.com/pyscripter/MustangpeakEasyListView) and
+    [Virtual-TreeView](https://github.com/Virtual-TreeView/Virtual-TreeView).
 
   2. Clone or download and unzip the Github repository into a directory (e.g., D:\MustangpeakVirtualShellTools). 
 
