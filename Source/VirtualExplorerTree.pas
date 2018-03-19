@@ -2924,11 +2924,7 @@ uses
   {$IFDEF SpTBX}
   ColumnFormSpTBX,
   {$ELSE}
-    {$IFDEF TBX}
-    ColumnFormTBX,
-    {$ELSE}
-      ColumnForm,
-    {$ENDIF}
+  ColumnForm,
   {$ENDIF}
   Imm;
 

@@ -89,11 +89,7 @@ uses
   {$IFDEF SpTBX}
   ColumnFormSpTBX,
   {$ELSE}
-    {$IFDEF TBX}
-    ColumnFormTBX,
-    {$ELSE}
-      ColumnForm,
-    {$ENDIF}
+  ColumnForm,
   {$ENDIF}
   EasyListview,
   {$IFDEF USE_TOOLBAR_TB2K}

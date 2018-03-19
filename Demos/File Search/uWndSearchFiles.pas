@@ -9,19 +9,12 @@ unit uWndSearchFiles;
 
 interface
 
-{$Include Compilers.Inc}
-
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
   ComCtrls, StdCtrls, ExtCtrls, Spin, ActiveX, MPCommonUtilities,
-  {$IFDEF DELPHI_6_UP}
-    {$WARN UNIT_PLATFORM OFF}
-    FindFile,
-    {$WARN UNIT_PLATFORM ON}
-  {$ELSE}
-    FindFile,
-  {$ENDIF}
-
+  {$WARN UNIT_PLATFORM OFF}
+  FindFile,
+  {$WARN UNIT_PLATFORM ON}
   VirtualExplorerTree, VirtualTrees,
   VirtualShellNotifier, MPCommonObjects, ToolWin, VirtualShellToolBar,
   MPShellUtilities, MPDataObject;
@@ -138,13 +131,9 @@ implementation
 {$R *.DFM}
 
 uses
-  {$IFDEF DELPHI_6_UP}
-    {$WARN UNIT_PLATFORM OFF}
-    FileCtrl,
-    {$WARN UNIT_PLATFORM ON}
-  {$ELSE}
-    FileCtrl,
-  {$ENDIF}
+  {$WARN UNIT_PLATFORM OFF}
+  FileCtrl,
+  {$WARN UNIT_PLATFORM ON}
   ShellAPI, ShlObj, SyncObjs, ComObj;
 
 

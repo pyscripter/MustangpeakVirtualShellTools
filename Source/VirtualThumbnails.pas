@@ -11,7 +11,6 @@ The initial developer of this code is Robert Lee.
 Requirements:
   - Jim Kuenaman's Mustangpeak Common Library
     http://www.mustangpeak.net
-  - Troy Wolbrink's TNT Unicode Controls
     http://www.tntware.com/delphicontrols/unicode/
 
 Credits:
