@@ -4977,12 +4977,12 @@ begin
   case State of
     usBegin:
       begin
-        WaitCursor(True);
+        //WaitCursor(True);
         EnableChangeNotifier(False);
       end;
     usEnd:
       begin
-        WaitCursor(False);
+        //WaitCursor(False);
         EnableChangeNotifier(True)
       end
   end
