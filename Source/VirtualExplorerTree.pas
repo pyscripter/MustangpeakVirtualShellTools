@@ -481,7 +481,7 @@ type
 {-------------------------------------------------------------------------------}
 
 const
-  DefaultVETPaintOptions = [toShowButtons, toUseBlendedImages, toShowTreeLines, toGhostedIfUnfocused];
+  DefaultVETPaintOptions = [toHideSelection, toShowButtons, toUseBlendedImages, toShowTreeLines, toGhostedIfUnfocused];
   DefaultVETFolderOptions = [toFoldersExpandable];
   DefaultVETShellOptions = [toContextMenus, toRightAlignSizeColumn];
   DefaultVETMiscOptions = [toExecuteOnDblClk, toBrowseExecuteFolder, toBrowseExecuteFolderShortcut, toBrowseExecuteZipFolder];
@@ -491,7 +491,7 @@ const
   DefaultExplorerTreeFileObjects = [foFolders, foHidden];
   DefaultExplorerTreeAutoOptions = [toAutoScroll];
   DefaultExplorerTreeMiscOptions = [toEditable, toAcceptOLEDrop, toToggleOnDblClick];
-  DefaultExplorerTreePaintOptions = [toShowButtons, toUseBlendedImages, toShowTreeLines, toGhostedIfUnfocused];
+  DefaultExplorerTreePaintOptions = [toHideSelection, toShowButtons, toUseBlendedImages, toShowTreeLines, toGhostedIfUnfocused];
   DefaultExplorerTreeVETFolderOptions = [toFoldersExpandable];
   DefaultExplorerTreeVETShellOptions = [toContextMenus];
   DefaultExplorerTreeVETMiscOptions = [toChangeNotifierThread, toBrowseExecuteFolder, toBrowseExecuteFolderShortcut, toBrowseExecuteZipFolder, toRemoveContextMenuShortCut];
@@ -500,7 +500,7 @@ const
   DefaultExplorerTreeVETSyncOptions = [toCollapseTargetFirst, toSelectTarget, toExpandTarget];
 
   DefaultExplorerListFileObjects = [foFolders, foHidden, foNonFolders, foEnableAsync];
-  DefaultExplorerListPaintOptions = [toShowTreeLines, toUseBlendedImages, toGhostedIfUnfocused];
+  DefaultExplorerListPaintOptions = [toHideSelection, toShowTreeLines, toUseBlendedImages, toGhostedIfUnfocused];
   DefaultExplorerListMiscOptions = [toAcceptOLEDrop, toToggleOnDblClick, toReportMode, toEditable];
   DefaultExplorerListAutoOptions = [toAutoScroll];
   DefaultExplorerListVETFolderOptions = [toHideRootFolder];
