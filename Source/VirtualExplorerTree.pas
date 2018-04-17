@@ -5359,7 +5359,7 @@ begin
       // ExecuteFolder is true only when the folder is NOT browsable
       ExecuteFolder := True;
       if (toBrowseExecuteFolder in VETMiscOptions) and Namespace.Folder then
-        if WideStrIComp(PWideChar(Namespace.Extension), '.zip') = 0 then
+        if Namespace.Compressed then
           ExecuteFolder := not (toBrowseExecuteZipFolder in VETMiscOptions)
         else
           ExecuteFolder := False;
@@ -9838,7 +9838,7 @@ begin
   DefaultExecution := True;
   if ValidateNamespace(Node, NS) then
     if (toBrowseExecuteFolder in TreeOptions.VETMiscOptions) and NS.Folder then
-      if WideStrIComp(PWideChar(NS.Extension), '.zip') = 0 then
+      if NS.Compressed = 0 then
       begin
         if toBrowseExecuteZipFolder in TreeOptions.VETMiscOptions then
           DefaultExecution := not BrowseToNextLevel; // This works because the click has selected the node
