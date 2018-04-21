@@ -63,7 +63,7 @@ object Form1: TForm1
       Height = 386
       Align = alClient
       Color = clBlack
-      Font.Charset = GREEK_CHARSET
+      Font.Charset = ANSI_CHARSET
       Font.Color = clWhite
       Font.Height = -13
       Font.Name = 'Courier New'
@@ -71,6 +71,7 @@ object Form1: TForm1
       ParentFont = False
       ScrollBars = ssBoth
       TabOrder = 0
+      Zoom = 100
       OnKeyDown = RichEdit1KeyDown
     end
   end

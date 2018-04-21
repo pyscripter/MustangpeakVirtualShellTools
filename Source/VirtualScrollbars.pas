@@ -664,7 +664,8 @@ begin
         if Temp - Result < 0 then
           Result := 0;
       end;
-    sbVThumbClientHeight:
+    else
+    {sbVThumbClientHeight:}
       begin
         Temp := GetSystemMetrics(SM_CYVSCROLL);
         if Height > 2 * Temp then

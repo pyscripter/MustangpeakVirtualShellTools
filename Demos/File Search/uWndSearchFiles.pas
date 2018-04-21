@@ -95,7 +95,7 @@ type
                                       ShellEvent: TVirtualShellEvent);
     procedure SearchResultContextMenuCmd(
       Sender: TCustomVirtualExplorerTree; Namespace: TNamespace;
-      Verb: WideString; MenuItemID: Integer; var Handled: Boolean);
+      Verb: string; MenuItemID: Integer; var Handled: Boolean);
   private
     FBackgroundUpdatedPaths: TStringList;
     FCompleteSearchResultExists: Boolean;
@@ -145,7 +145,7 @@ const
 
 
 // NewShortcutNameW should maybe be added to VirtualWideStrings.pas
-function NewShortcutNameW(ParentFolder: WideString; TargetName: WideString): WideString;
+function NewShortcutNameW(ParentFolder: string; TargetName: string): string;
 var
   i: integer;
 begin
@@ -272,7 +272,7 @@ begin
   begin
     FileName := Edit_Filename.Text;
     Location := Edit_Location.Text;
-    FSearchPath:= LowerCase(Edit_Location.Text);
+    FSearchPath:= SysUtils.AnsiLowerCase(Edit_Location.Text);
     Subfolders := CheckBox_IncludeSubfolders.Checked;
   end;
   // - Containing Text
@@ -623,7 +623,7 @@ begin
 
   // We only update the list if a complete search result exists.
   // The notification message must also concern a path included in the search
-  NotifyPath := LowerCase(PIDLToPath(ShellEvent.PIDL1));
+  NotifyPath := SysUtils.AnsiLowerCase(PIDLToPath(ShellEvent.PIDL1));
   if FCompleteSearchResultExists and (Pos(FSearchPath, NotifyPath) > 0) then
   begin
     BckUpdateActive := FBackgroundUpdatedPaths.Count > 0;
@@ -707,7 +707,7 @@ end;
 
 procedure TWndSearchFiles.SearchResultContextMenuCmd(
   Sender: TCustomVirtualExplorerTree; Namespace: TNamespace;
-  Verb: WideString; MenuItemID: Integer; var Handled: Boolean);
+  Verb: string; MenuItemID: Integer; var Handled: Boolean);
 var
   NSA: TNamespaceArray;
   i: Integer;

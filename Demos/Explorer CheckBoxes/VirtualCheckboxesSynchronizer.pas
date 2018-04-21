@@ -113,7 +113,7 @@ function IsFolder(NS: TNamespace; IncludeMyComputer: Boolean = false;
   IncludeNetwork: Boolean = false; IncludeZipFolders: Boolean = false): Boolean;
 function IsFile(NS: TNamespace): Boolean;
 function ForceInit(VT: TBaseVirtualTree; Node: PVirtualNode): Boolean;
-function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: WideString;
+function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: string;
   StartingPoint: PVirtualNode = nil): PVirtualNode;
 
 function CheckStateTrack(Node: PVirtualNode): TCheckState;
@@ -157,12 +157,12 @@ begin
     VT.ReinitChildren(Node, false);
 end;
 
-function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: WideString;
+function FindNodeByFilename(VET: TVirtualExplorerTreeview; Filename: string;
   StartingPoint: PVirtualNode): PVirtualNode;
 //Finds the corresponding Node of a given Filename in the Tree.
 //It's the same as VET.FindNode method, but it searches through uninitialized Parent Nodes.
 
-  function FindNamespace(ParentNode: PVirtualNode; Filename: WideString): PVirtualNode;
+  function FindNamespace(ParentNode: PVirtualNode; Filename: string): PVirtualNode;
   var
     N: PVirtualNode;
     NS: TNamespace;
@@ -186,10 +186,10 @@ var
   N: PVirtualNode;
   I: integer;
   L: TStringList;
-  WS: WideString;
+  WS: string;
 begin
   Result := nil;
-  if not Assigned(VET) or (not WideDirectoryExists(Filename) and not WideFileExists(Filename)) then Exit;
+  if not Assigned(VET) or (not DirectoryExists(Filename) and not FileExists(Filename)) then Exit;
 
   if not Assigned(StartingPoint) then
     StartingPoint := VET.FindNodeByPIDL(DrivesFolder.AbsolutePIDL); //default to MyComputer
@@ -201,7 +201,7 @@ begin
     L.Insert(0, WS);
     while Length(WS) > 3 do
     begin
-      WS := WideExtractFileDir(WS);
+      WS := ExtractFileDir(WS);
       L.Insert(0, WS);
     end;
 

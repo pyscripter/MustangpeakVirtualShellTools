@@ -212,11 +212,11 @@ type
     FPathImage: TBreadCrumbBarObject;
     FState: TVirtualBreadCrumbBarStates;
     FTrackingMenu: TPopupMenu;             // Set/Cleared by the Crumb object when it opens a menu
-    function GetPath: WideString;
+    function GetPath: string;
     function GetPIDL: PItemIDList;
     procedure SetActive(const Value: Boolean);
     procedure SetOptions(const Value: TVirtualBreadCrumbBarOptions);
-    procedure SetPath(const Value: WideString);
+    procedure SetPath(const Value: string);
     procedure SetPIDL(const Value: PItemIDList);
   protected
     procedure BuildViewRects;
@@ -244,7 +244,7 @@ type
     property Namespace: TNamespace read FNamespace;
     property Options: TVirtualBreadCrumbBarOptions read FOptions write SetOptions default [vbcoEditable, vbcoDropDownTree, vbcoDropDownAutoComplete, vbcoDropDownMenus, vbcoDropDownExpandableMenus];
     property PaintOptions: TVirtualBreadCrumbBarPaintOptions read FPaintOptions write FPaintOptions;
-    property Path: WideString read GetPath write SetPath;
+    property Path: string read GetPath write SetPath;
     property TrackingMenu: TPopupMenu read FTrackingMenu write FTrackingMenu;
   public
     constructor Create(AOwner: TComponent); override;
@@ -346,7 +346,7 @@ begin
   end
 end;
 
-function TCustomVirtualBreadCrumbBar.GetPath: WideString;
+function TCustomVirtualBreadCrumbBar.GetPath: string;
 begin
   if Assigned(FNamespace) then
     Result := Namespace.NameForParsing
@@ -585,7 +585,7 @@ begin
   end
 end;
 
-procedure TCustomVirtualBreadCrumbBar.SetPath(const Value: WideString);
+procedure TCustomVirtualBreadCrumbBar.SetPath(const Value: string);
 var
   PIDL: PItemIDList;
   NS, OldNS: TNamespace;
