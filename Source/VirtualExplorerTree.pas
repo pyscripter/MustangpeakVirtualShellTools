@@ -6449,7 +6449,7 @@ function TCustomVirtualExplorerTree.RefreshTree(RestoreTopNode: Boolean = False)
 var
   WasThreadedEnum: Boolean;
 begin
-  if ShellNotifyManager.OkToDispatch then
+  if FActive and ShellNotifyManager.OkToDispatch then
   begin
     WaitCursor(True);
     // None of the restores will work if enumerated
