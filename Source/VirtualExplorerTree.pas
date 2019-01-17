@@ -7335,14 +7335,14 @@ end;
 
 procedure TCustomVirtualExplorerTree.TerminateEnumThread;
 begin
+  if not Assigned(EnumThread) then Exit;
   try
     EnterCriticalSection(FEnumLock);
     EnumThreadTimer(False);
     HideAnimateFolderWnd;
     FreeAndNil(FEnumBkGndList);
     // Frees itself
-    if Assigned(EnumThread) then
-      EnumThread.Terminate;
+    EnumThread.Terminate;
   finally
     EnumThread := nil;
     LeaveCriticalSection(FEnumLock)
