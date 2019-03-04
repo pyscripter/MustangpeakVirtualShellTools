@@ -5214,7 +5214,7 @@ begin
     WaitCursor(True);
     try
       BeginUpdate;
-      if ChildCount[Node] = 0 then
+      if Node.ChildCount = 0 then
       begin
         if ValidateNamespace(Node, NS) then
         begin
@@ -5247,7 +5247,7 @@ begin
             { there is no children.                                                   }
             if Node.ChildCount > 0 then
               Sort(Node, Header.SortColumn, Header.SortDirection, False);
-            Result := ChildCount[Node];
+            Result := Node.ChildCount;
 
             if ThreadedEnum and not (csDesigning in ComponentState) then
               EnumThreadFinished;
