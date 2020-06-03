@@ -2561,8 +2561,8 @@ begin
 end;
 
 function TChangeNamespace.Valid: Boolean;
-var
-  rgfInOut: UINT;
+//var
+//  rgfInOut: UINT;
 begin
   // This takes a lot of time and I am not sure it is necessary anymore since
   // I now understand where a lot of my crashes where with the syncronous context menu
@@ -2571,13 +2571,13 @@ begin
   Exit;
   
 
-  // Does not work on floppy drives and such
-  if Assigned(ParentShellFolder) then
-  begin
-    rgfInOut := SFGAO_VALIDATE;
-    Result := ParentShellFolder.GetAttributesOf(1, FRelativePIDL, rgfInOut) = NOERROR
-  end else
-    Result := True
+//  // Does not work on floppy drives and such
+//  if Assigned(ParentShellFolder) then
+//  begin
+//    rgfInOut := SFGAO_VALIDATE;
+//    Result := ParentShellFolder.GetAttributesOf(1, FRelativePIDL, rgfInOut) = NOERROR
+//  end else
+//    Result := True
 end;
 
 { TShellNotifyManager }
