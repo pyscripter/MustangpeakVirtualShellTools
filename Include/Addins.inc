@@ -12,7 +12,7 @@
 // VirtualShellToolsDx.dpk "Requires" section.
 // This is easier if you open the VirtualShellToolsDx.dpk with a text editor and add this:
 //
-// E,g, For D6 replace with:
+// E,g, For D6:
 //
 //  requires
 //    VirtualTreesD6,
@@ -24,11 +24,10 @@
 // Then recompile VSTools
 //
 // DO NOT allow Delphi to add the units to the "Contains" section automaticlly
-// if you forget to add the packages to the "Requires"
-// section.
+// if you forget to add the packages to the "Requires" section.
 
 // Define USE_TOOLBAR_TB2K if you use Toolbar 2000, SpTBXLib
-{.$DEFINE USE_TOOLBAR_TB2K}
+{$DEFINE USE_TOOLBAR_TB2K}
 // Define SpTBX if you use SpTBXLib
 {.$DEFINE SpTBX}
 
