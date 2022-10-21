@@ -9,6 +9,7 @@
 *.rsm
 *.stat
 *.map
+*.lib
 
 # Generated source #
 ###################
@@ -17,6 +18,11 @@
 # Backup files    #
 ###################
 *.~*
+*.bak
+*.#00
+*.pch
+*.Patch
+/__history
 
 # IDE Files	  #
 ###################
@@ -36,9 +42,8 @@
 /Win32
 /Win64
 /OSX32
-/__history
-*.bak
-*.Patch
-VirtualTreeView.zip
-*.#00
-*.pch
+
+#    C++ Files    #
+###################
+*.prjmgc
+

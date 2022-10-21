@@ -180,8 +180,6 @@ type
     property RelativePIDL: PItemIDList read FRelativePIDL;
   end;
 
-  TChangeNamespaceArray = array of TChangeNamespace;
-
   // Structure of the TMessage sent to the window that registered as  notification recipient.
   TWMShellNotify = {$IFNDEF CPUX64}packed{$ENDIF} record
     Msg: Cardinal;
@@ -190,17 +188,6 @@ type
     Unused: LPARAM;
     Result: LRESULT;
   end;
-
-  THandleArray = array of THandle;
-  // Structure to hold the FindFirstChangeNotification handles and PILDs of the
-  // folder associated with the handle
-  TKernelWatchRec = packed record
-    Handles: THandleArray;
-    NSs: TChangeNamespaceArray;
-  end;
-
-  TEventListArray = array[0..19] of TList;
-
 
 // TVirtualShellEvent Encapsulates a Shell Notification Event.  Since one the
 // underlying notification systems is the undocumented SHChangeNotify client
@@ -319,7 +306,7 @@ type
 
     procedure CreateNotifyWindow;
     procedure DestroyNotifyWindow;
-    function NotifyWndProc(Wnd: HWND; Msg: UINT; wParam, lParam: LPARAM): LRESULT; stdcall;
+    function NotifyWndProc(Wnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
     procedure RegisterChangeNotify;
     procedure UnRegisterChangeNotify;
 
@@ -363,7 +350,6 @@ type
     constructor Create(CreateSuspended: Boolean; AChangeNotifier: TVirtualChangeNotifier); reintroduce; virtual;
     destructor Destroy; override;
 
-    procedure RemoveEventFromWatchArray(var WatchArray: TKernelWatchRec; EventIndex: Integer);
     procedure TriggerEvent;
 
     property ChangeNotifier: TVirtualChangeNotifier read FChangeNotifier;
@@ -1075,7 +1061,7 @@ begin
       begin
         // Had some strange AV's that may be related to this call
         // See if this fixes it. 1/22/03
-  //      PackMessages(TempList);
+        //PackMessages(TempList);
         List := ControlList.LockList;
         try
           TempList.ID := IDCounter;
@@ -1083,12 +1069,14 @@ begin
           for i := 0 to List.Count - 1 do
           begin
             Control := TVirtualChangeControl(List[i]).Control;
-            if Control.HandleAllocated then
+            // Send Message only to controls registered for Shell changes
+            if TVirtualChangeControl(List[i]).ShellChangeRegistered and Control.HandleAllocated then
             begin
               if not PostMessage(Control.Handle, WM_SHELLNOTIFY, WPARAM(TempList), 0) then
                 TempList.Release
-              end else
-            TempList.Release;
+            end
+            else
+              TempList.Release;
           end;
         finally
           ControlList.UnlockList;
@@ -1168,7 +1156,7 @@ begin
         DoTrigger := True;
         Result := True;
       end else
-        // Yes it is already resistered
+        // Yes it is already registered
         Result := True
     end
     else begin
@@ -1560,82 +1548,121 @@ begin
 end;
 
 procedure TVirtualKernelChangeThread.Execute;
+type
+  THandleArray = array of THandle;
+  TChangeNamespaceArray = array of TChangeNamespace;
+  TWinControlArray = array of TWinControl;
 
-    function RebuildWatchNotify(var RegisteredCount: Integer; APIDLMgr: TCommonPIDLManager): TKernelWatchRec;
-    const
-      Special = FILE_NOTIFY_CHANGE_FILE_NAME or FILE_NOTIFY_CHANGE_DIR_NAME or FILE_NOTIFY_CHANGE_ATTRIBUTES or
-        FILE_NOTIFY_CHANGE_SIZE or FILE_NOTIFY_CHANGE_LAST_WRITE;
-    var
-      List: TList;
-      i: integer;
-      ChangeControl: TVirtualChangeControl;
-      HandleIndex: integer;
-      PIDL: PItemIDList;
+  // Structure to hold the FindFirstChangeNotification handles and PILDs of the
+  // folder associated with the handle
+  TKernelWatchRec = packed record
+    Handles: THandleArray;
+    NSs: TChangeNamespaceArray;
+    Controls: TWinControlArray;
+  end;
+
+  procedure RemoveEventFromWatchArray( var WatchArray: TKernelWatchRec; EventIndex: Integer);
+  var
+    i: Integer;
+  begin
+    if EventIndex < Length(WatchArray.Handles) then
     begin
-      EnterCriticalSection(ChangeNotifier.FSpecialFolderRegisterLock);
+      FindCloseChangeNotification(WatchArray.Handles[EventIndex]);
+      WatchArray.NSs[EventIndex].Free;
+      for i := EventIndex to Length(WatchArray.Handles) - 2 do
+      begin
+        WatchArray.Handles[i] := WatchArray.Handles[i+1];
+        WatchArray.NSs[i] := WatchArray.NSs[i+1];
+        WatchArray.Controls[i] := WatchArray.Controls[i+1];
+      end;
+      SetLength(WatchArray.Handles, Length(WatchArray.Handles) - 1);
+      SetLength(WatchArray.NSs, Length(WatchArray.NSs) - 1);
+      SetLength(WatchArray.Controls, Length(WatchArray.Controls) - 1)
+    end
+  end;
+
+  function RebuildWatchNotify(var RegisteredCount: Integer; APIDLMgr: TCommonPIDLManager): TKernelWatchRec;
+  const
+    Special = FILE_NOTIFY_CHANGE_FILE_NAME or FILE_NOTIFY_CHANGE_DIR_NAME or FILE_NOTIFY_CHANGE_ATTRIBUTES or
+      FILE_NOTIFY_CHANGE_SIZE or FILE_NOTIFY_CHANGE_LAST_WRITE;
+  var
+    List: TList;
+    i: integer;
+    ChangeControl: TVirtualChangeControl;
+    HandleIndex: integer;
+    PIDL: PItemIDList;
+  begin
+    EnterCriticalSection(ChangeNotifier.FSpecialFolderRegisterLock);
+    try
+      HandleIndex := 0;
+      RegisteredCount := 1;  // Always have the KernelChangeEvent
+      List := ChangeNotifier.ControlList.LockList;
       try
-        HandleIndex := 0;
-        RegisteredCount := 1;  // Always have the KernelChangeEvent
-        List := ChangeNotifier.ControlList.LockList;
-        try
-          SetLength(Result.Handles, MAXIMUM_WAIT_OBJECTS);
-          SetLength(Result.NSs, MAXIMUM_WAIT_OBJECTS);
-          // Our safefy valve to release the WaitForMultipleObject
-          Result.Handles[0] := KernelChangeEvent;
-          Result.NSs[0] := nil;
-          HandleIndex := 1;
+        SetLength(Result.Handles, MAXIMUM_WAIT_OBJECTS);
+        SetLength(Result.NSs, MAXIMUM_WAIT_OBJECTS);
+        SetLength(Result.Controls, MAXIMUM_WAIT_OBJECTS);
+        // Our safefy valve to release the WaitForMultipleObject
+        Result.Handles[0] := KernelChangeEvent;
+        Result.NSs[0] := nil;
+        HandleIndex := 1;
 
-          // These are the special folders that are difficult to watch
-          for i := 0 to SpecialFolderPhysicalPath.Count - 1 do
+        // These are the special folders that are difficult to watch
+        for i := 0 to SpecialFolderPhysicalPath.Count - 1 do
+        begin
+          Result.Handles[HandleIndex] := FindFirstChangeNotification(
+            PWideChar(SpecialFolderPhysicalPath[i]), False, Special);
+          if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then
           begin
-            Result.Handles[HandleIndex] := FindFirstChangeNotification(
-              PWideChar(SpecialFolderPhysicalPath[i]), False, Special);
-            if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then
-            begin
-              Result.NSs[HandleIndex] := TChangeNamespace.Create(SpecialFolderPhysicalPIDL[i]);
-              if Assigned(Result.NSs[HandleIndex]) then
-                Inc(HandleIndex)
-              else
-                FindCloseChangeNotification(Result.Handles[HandleIndex])
-            end
-          end;
-
-          // These are the WatchFolders specified by the registered Change Windows
-          for i := 0 to List.Count - 1 do
-          begin
-            ChangeControl := TVirtualChangeControl( List[i]);
-            if (ChangeControl.KernelChangeRegistered) then
-            begin
-              if (ChangeControl.WatchFolder <> '') then
-              begin
-                Result.Handles[HandleIndex] := FindFirstChangeNotification(PWideChar(ChangeControl.WatchFolder),
-                  False, ChangeControl.MapNotifyEvents);
-                if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then
-                begin
-                  PIDL := PathToPIDL(ChangeControl.WatchFolder);
-                  if Assigned(PIDL) then
-                  begin
-                    Result.NSs[HandleIndex] := TChangeNamespace.Create(PIDL);
-                    if Assigned(Result.NSs[HandleIndex]) then
-                      Inc(HandleIndex)
-                    else
-                      FindCloseChangeNotification(Result.Handles[HandleIndex])
-                  end else
-                    FindCloseChangeNotification(Result.Handles[HandleIndex])
-                end
-              end;
-              Inc(RegisteredCount)
-            end
+            Result.NSs[HandleIndex] := TChangeNamespace.Create(SpecialFolderPhysicalPIDL[i]);
+            if Assigned(Result.NSs[HandleIndex]) then
+              Inc(HandleIndex)
+            else
+              FindCloseChangeNotification(Result.Handles[HandleIndex])
           end
-        finally
-          ChangeNotifier.ControlList.UnlockList;
-          SetLength(Result.Handles, HandleIndex);
-          SetLength(Result.NSs, HandleIndex);
+        end;
+
+        // These are the WatchFolders specified by the registered Change Windows
+        for i := 0 to List.Count - 1 do
+        begin
+          ChangeControl := TVirtualChangeControl( List[i]);
+          if (ChangeControl.KernelChangeRegistered) then
+          begin
+            if (ChangeControl.WatchFolder <> '') then
+            begin
+              Result.Handles[HandleIndex] := FindFirstChangeNotification(PWideChar(ChangeControl.WatchFolder),
+                False, ChangeControl.MapNotifyEvents);
+              if Result.Handles[HandleIndex] <> INVALID_HANDLE_VALUE then
+              begin
+                PIDL := PathToPIDL(ChangeControl.WatchFolder);
+                if Assigned(PIDL) then
+                begin
+                  Result.NSs[HandleIndex] := TChangeNamespace.Create(PIDL);
+                  if Assigned(Result.NSs[HandleIndex]) then
+                  begin
+                    if not ChangeControl.ShellChangeRegistered then
+                    // The control will receive a WM_FOLDERCHANGENOTIFY
+                    // message without further processing
+                      Result.Controls[HandleIndex] := ChangeControl.Control;
+                    Inc(HandleIndex);
+                  end
+                  else
+                    FindCloseChangeNotification(Result.Handles[HandleIndex])
+                end else
+                  FindCloseChangeNotification(Result.Handles[HandleIndex])
+              end
+            end;
+            Inc(RegisteredCount)
+          end
         end
       finally
-        LeaveCriticalSection(ChangeNotifier.FSpecialFolderRegisterLock)
+        ChangeNotifier.ControlList.UnlockList;
+        SetLength(Result.Handles, HandleIndex);
+        SetLength(Result.NSs, HandleIndex);
       end
-    end;
+    finally
+      LeaveCriticalSection(ChangeNotifier.FSpecialFolderRegisterLock)
+    end
+  end;
 
 var
   RunLoop: Boolean;
@@ -1673,33 +1700,42 @@ begin
             // As long as it is not the Event trigging the Wait keep looping waiting for change notifications
             if WaitIndex - WAIT_OBJECT_0 > 0 then
             begin
-              PIDL := LocalPIDLMgr.CopyPIDL(WatchArray.NSs[WaitIndex].AbsolutePIDL);
-              if not WatchArray.NSs[WaitIndex].Valid then
-                InvalidNamespace := True;
-
-              ChangeNotifier.ChangeDispatchThread.AddEvent(vsneUpdateDir, PIDL, PIDL, LocalPIDLMgr, InvalidNamespace);
-
-              // Generate PIDLs rooted from the Virtual Namespace as well and dispatch them.
-              Index := ChangeInSpecialFolder(PIDL);
-              if Index > -1 then
+              if Assigned(WatchArray.Controls[WaitIndex]) then
               begin
-                VPIDL := GenerateVirtualFolderPathPIDL(PIDL, Index, LocalPIDLMgr);
-                if Assigned(VPIDL) then
+                // The control has not registered for Shell notifications (see RebuildWatchNotify).
+                // It will receive a WM_FOLDERCHANGENOTIFY message without further processing
+                if WatchArray.Controls[WaitIndex].HandleAllocated then
+                  PostMessage(WatchArray.Controls[WaitIndex].Handle, WM_FOLDERCHANGENOTIFY, 0, 0);
+              end
+              else
+              begin
+                PIDL := LocalPIDLMgr.CopyPIDL(WatchArray.NSs[WaitIndex].AbsolutePIDL);
+                if not WatchArray.NSs[WaitIndex].Valid then
+                  InvalidNamespace := True;
+
+                ChangeNotifier.ChangeDispatchThread.AddEvent(vsneUpdateDir, PIDL, PIDL, LocalPIDLMgr, InvalidNamespace);
+
+                // Generate PIDLs rooted from the Virtual Namespace as well and dispatch them.
+                Index := ChangeInSpecialFolder(PIDL);
+                if Index > -1 then
                 begin
-                  ChangeNotifier.ChangeDispatchThread.AddEvent(vsneUpdateDir, VPIDL, VPIDL, LocalPIDLMgr, InvalidNamespace);
-                  LocalPIDLMgr.FreeAndNilPIDL(VPIDL);
-                end
+                  VPIDL := GenerateVirtualFolderPathPIDL(PIDL, Index, LocalPIDLMgr);
+                  if Assigned(VPIDL) then
+                  begin
+                    ChangeNotifier.ChangeDispatchThread.AddEvent(vsneUpdateDir, VPIDL, VPIDL, LocalPIDLMgr, InvalidNamespace);
+                    LocalPIDLMgr.FreeAndNilPIDL(VPIDL);
+                  end
+                end;
+                LocalPIDLMgr.FreeAndNilPIDL(PIDL);
+                {$IFDEF VIRTUALNOTIFYDEBUG}
+                NotifyDebug.KernelEvents  := NotifyDebug.KernelEvents + 1;
+                {$ENDIF}
               end;
-              LocalPIDLMgr.FreeAndNilPIDL(PIDL);
-              {$IFDEF VIRTUALNOTIFYDEBUG}
-              NotifyDebug.KernelEvents  := NotifyDebug.KernelEvents + 1;
-              {$ENDIF}
 
               if InvalidNamespace then
                 RemoveEventFromWatchArray(WatchArray, WaitIndex)
               else
                 FindNextChangeNotification(WatchArray.Handles[WaitIndex]);
-
             end else
               RunLoop := False
           end else
@@ -1716,6 +1752,7 @@ begin
         // Keep the Event handle
         SetLength(WatchArray.Handles, 1);
         SetLength(WatchArray.NSs, 1);
+        SetLength(WatchArray.Controls, 1);
       end
     except
       // catch all exceptions
@@ -1774,25 +1811,6 @@ begin
       Result := nil
   end else
     Result := nil
-end;
-
-procedure TVirtualKernelChangeThread.RemoveEventFromWatchArray(
-  var WatchArray: TKernelWatchRec; EventIndex: Integer);
-var
-  i: Integer;
-begin
-  if EventIndex < Length(WatchArray.Handles) then
-  begin
-    FindCloseChangeNotification(WatchArray.Handles[EventIndex]);
-    WatchArray.NSs[EventIndex].Free;
-    for i := EventIndex to Length(WatchArray.Handles) - 2 do
-    begin
-      WatchArray.Handles[i] := WatchArray.Handles[i+1];
-      WatchArray.NSs[i] := WatchArray.NSs[i+1]
-    end;
-    SetLength(WatchArray.Handles, Length(WatchArray.Handles) - 1);
-    SetLength(WatchArray.NSs, Length(WatchArray.NSs) - 1)
-  end
 end;
 
 procedure TVirtualKernelChangeThread.TriggerEvent;
@@ -1907,8 +1925,7 @@ begin
 end;
 
 
-function TVirtualShellChangeThread.NotifyWndProc(Wnd: HWND; Msg: UINT;
-  wParam, lParam: LPARAM): LRESULT;
+function TVirtualShellChangeThread.NotifyWndProc(Wnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT;
 
       procedure AddEventToList(Event: LongWord; SNR: PShellNotifyRec; W1, W2: DWORD);
       begin
@@ -2239,7 +2256,7 @@ begin
             AddingEvents := False;
 
             // for debugging
-        //    DoneAdding := True;               
+            //DoneAdding := True;
           finally
             LeaveCriticalSection(FAddLock);
           end;
@@ -2265,7 +2282,7 @@ begin
           WorkingList.UnlockList
         end;
         TempList.FRefCount := 1;
-        PostMessage(ChangeNotifier.Listener, WM_SHELLNOTIFY, Longword(TempList), 0)
+        PostMessage(ChangeNotifier.Listener, WM_SHELLNOTIFY, WPARAM(TempList), 0)
       end
     except
       // trap all exceptions
@@ -2734,7 +2751,7 @@ begin
         TVirtualReferenceCountedList(EList[i]).FRefCount := VList.Count;
         for j := 0 to VList.Count - 1 do
         begin
-          NotifyMsg.wParam := Integer(TVirtualShellEventList(EList[i]));
+          NotifyMsg.wParam := WParam(TVirtualShellEventList(EList[i]));
           if TWinControl(VList[j]).GetInterface(IVirtualShellNotify, ShellNotify) then
             ShellNotify.Notify(NotifyMsg);
         end;

@@ -132,7 +132,7 @@ type
     property ImageHeight: Integer read FImageHeight write FImageHeight;
     property StreamSignature: string read FStreamSignature;
     property Tag: Integer read FTag write FTag;
-    property ThumbBitmapStream: TMemoryStream read FThumbBitmapStream write FThumbBitmapStream;
+    property ThumbBitmapStream: TMemoryStream read FThumbBitmapStream;
     property ThumbSize: TPoint read GetThumbSize;
     property UseCompression: Boolean read FUseCompression write FUseCompression;
   end;
@@ -270,13 +270,17 @@ function SpGetGraphicClass(Filename: string): TGraphicClass;
 function SpLoadGraphicFile(Filename: string; outP: TPicture; CatchIncompleteJPGErrors: Boolean = True): Boolean;
 procedure SpPixelRotate(InOutB: TBitmap; Angle: Integer);
 procedure SpStretchDraw(G: TGraphic; ACanvas: TCanvas; DestR: TRect; UseSubsampling: Boolean);
+{$IFDEF USEIMAGEEN}
+function SpMakeThumbFromFileImageEn(Filename: string; OutBitmap: TBitmap; ThumbW, ThumbH: Integer;
+  BgColor: TColor; Subsampling, ExifThumbnail, ExifOrientation: Boolean; var ImageWidth, ImageHeight: Integer): Boolean;
+{$ENDIF}
 function SpMakeThumbFromFile(Filename: string; OutBitmap: TBitmap; ThumbW,
   ThumbH: Integer; BgColor: TColor; SubSampling, ExifThumbnail, ExifOrientation: Boolean;
   var ImageWidth, ImageHeight: Integer): Boolean;
 function SpCreateThumbInfoFromFile(NS: TNamespace; ThumbW, ThumbH: Integer;
   UseSubsampling, UseShellExtraction, UseExifThumbnail, UseExifOrientation: Boolean;
   BackgroundColor: TColor): TThumbInfo;
-  function SpReadExifThumbnail(FileName: string; Exif: TStringList): TJpegImage;
+function SpReadExifThumbnail(FileName: string; Exif: TStringList): TJpegImage;
 
 { Stream helpers }
 function SpReadDateTimeFromStream(ST: TStream): TDateTime;
@@ -296,6 +300,7 @@ procedure SpConvertJPGStreamToBitmap(MS: TMemoryStream; OutBitmap: TBitmap);
 implementation
 
 uses
+{$IFDEF USEIMAGEEN} ImageEnIo, ImageEnProc, hyieutils, iexBitmaps, iexHelperFunctions,{$ENDIF}
   Types,
   Math;
 
@@ -514,9 +519,9 @@ end;
 procedure SpPixelRotate(InOutB: TBitmap; Angle: Integer);
 // Performs a clockwise rotation
 var
-  I, J: integer;
+  Row, Col: integer;
   OrigWidth, OrigHeight, DestWidth, DestHeight: Integer;
-  B: TBitmap;
+  Bitmap: TBitmap;
 begin
   if not Assigned(InOutB) or InOutB.Empty then Exit;
 
@@ -542,23 +547,27 @@ begin
     Exit;
   end;
 
-  B := TBitmap.Create;
+  Bitmap := TBitmap.Create;
   try
-    B.Width := DestWidth;
-    B.Height := DestHeight;
-
-    for I := 0 to OrigWidth do
-      for J := 0 to OrigHeight do begin
+    Bitmap.Width := DestWidth;
+    Bitmap.Height := DestHeight;
+    Bitmap.Canvas.Lock;
+    try
+    for Row := 0 to OrigWidth - 1 do
+      for Col := 0 to OrigHeight - 1 do
+      begin
         case Angle of
-          90: B.Canvas.Pixels[OrigHeight-J-1, I] := InOutB.Canvas.Pixels[I, J];
-          180: B.Canvas.Pixels[OrigWidth-I-1, OrigHeight-J-1] := InOutB.Canvas.Pixels[I, J];
-          270:  B.Canvas.Pixels[J, OrigWidth-I-1] := InOutB.Canvas.Pixels[I, J];
+          90: Bitmap.Canvas.Pixels[OrigHeight - Col - 1, Row] := InOutB.Canvas.Pixels[Row, Col];
+          180: Bitmap.Canvas.Pixels[OrigWidth - Row - 1, OrigHeight - Col - 1] := InOutB.Canvas.Pixels[Row, Col];
+          270:  Bitmap.Canvas.Pixels[Col, OrigWidth - Row - 1] := InOutB.Canvas.Pixels[Row, Col];
         end;
       end;
-
-    InOutB.Assign(B);
+    finally
+      Bitmap.Canvas.Unlock;
+    end;
+    InOutB.Assign(Bitmap);
   finally
-    B.Free;
+    Bitmap.Free;
   end;
 end;
 
@@ -605,6 +614,138 @@ begin
     ACanvas.Draw(DestR.Left, DestR.Top, G);
   end;
 end;
+
+{$IFDEF USEIMAGEEN}
+function SpMakeThumbFromFileImageEn(Filename: string; OutBitmap: TBitmap;
+  ThumbW, ThumbH: Integer; BgColor: TColor; Subsampling, ExifThumbnail, ExifOrientation: Boolean;
+  var ImageWidth, ImageHeight: Integer): Boolean;
+var
+  AttachedIEBitmap: TIEBitmap;
+  ImageEnIO: TImageEnIO;
+  ImageEnProc: TImageEnProc;
+  TempBitmap: TBitmap;
+  F: TVirtualFileStream;
+  DestR: TRect;
+  Ext: string;
+  IsRaw, IsVideo: Boolean;
+  Orientation: Integer;
+begin
+  Result := False;
+  ImageWidth := 0;
+  ImageHeight := 0;
+  Orientation := 0;
+  if not Assigned(OutBitmap) then Exit;
+  Ext := WideLowerCase(ExtractFileExt(Filename));
+
+  IsRaw := (ext = '.crw') or (ext = '.cr2') or (ext = '.dng')
+        or (ext = '.nef') or (ext = '.raw') or (ext = '.raf')
+        or (ext = '.x3f') or (ext = '.orf') or (ext = '.srf')
+        or (ext = '.mrw') or (ext = '.dcr') or (ext = '.bay')
+        or (ext = '.pef') or (ext = '.sr2') or (ext = '.arw')
+        or (ext = '.kdc') or (ext = '.mef') or (ext = '.3fr')
+        or (ext = '.k25') or (ext = '.erf') or (ext = '.cam')
+        or (ext = '.cs1') or (ext = '.dc2') or (ext = '.dcs')
+        or (ext = '.fff') or (ext = '.mdc') or (ext = '.mos')
+        or (ext = '.nrw') or (ext = '.ptx') or (ext = '.pxn')
+        or (ext = '.rdc') or (ext = '.rw2') or (ext = '.rwl')
+        or (ext = '.iiq') or (ext = '.srw');
+
+  IsVideo := (ext = '.avi') or (ext = '.mpg') or (ext = '.mpeg') or (ext = '.wmv');
+
+  TempBitmap := TBitmap.Create;
+  TempBitmap.Canvas.Lock;
+  try
+    AttachedIEBitmap := TIEBitmap.Create;
+    ImageEnIO := TImageEnIO.Create(nil);
+    ImageEnProc := TImageEnProc.Create(Nil);
+    try
+      ImageEnIO.AttachedIEBitmap := AttachedIEBitmap;
+      ImageEnProc.AttachedIEBitmap := AttachedIEBitmap;
+      ImageEnIO.Params.Width := ThumbW;
+      ImageEnIO.Params.Height := ThumbH;
+      ImageEnIO.Params.JPEG_Scale := ioJPEG_AUTOCALC;
+      ImageEnIO.Params.JPEG_DCTMethod := ioJPEG_IFAST;
+      ImageEnIO.Params.EnableAdjustOrientation := ExifOrientation;
+      // ImageEn bug: TImageEnIO.LoadFromStream doesn't work with wmf/emf/sun files
+      if (Ext = '.wmf') or (Ext = '.emf') or (Ext = '.sun') then
+      begin
+        ImageEnIO.LoadFromFile(Filename);
+        ImageWidth := ImageEnIO.Params.Width;
+        ImageHeight := ImageEnIO.Params.Height;
+        AttachedIEBitmap.CopyToTBitmap(TempBitmap);
+      end;
+      if IsVideo then
+      begin
+        ImageEnIO.OpenMediaFile(Filename);
+        ImageEnIO.LoadFromMediaFile(5);
+        ImageWidth := ImageEnIO.Params.Width;
+        ImageHeight := ImageEnIO.Params.Height;
+        AttachedIEBitmap.CopyToTBitmap(TempBitmap);
+        ImageEnIO.CloseMediaFile;
+      end
+      else
+      begin
+        F := TVirtualFileStream.Create(Filename, fmOpenRead or fmShareDenyNone);
+        try
+          if IsRaw then
+          begin
+            ImageEnIO.Params.GetThumbnail := True;
+            ImageEnIO.LoadFromStreamRAW(F);
+            if ExifOrientation then
+              if (ext = '.crw') then
+                Orientation := GetCrwOrientation(F) // CRW doesn't have Exif, read the CIFF data
+              else
+                Orientation := ImageEnIO.Params.EXIF_Orientation;
+            if (Orientation = 6) or (Orientation = 8) then
+              IEAdjustEXIFOrientation(AttachedIEBitmap, Orientation);
+            ImageWidth := AttachedIEBitmap.Width;
+            ImageHeight := AttachedIEBitmap.Height;
+          end
+          else
+          // If it's not a digital camera RAW file
+          begin
+            ImageEnIO.Params.GetThumbnail := ExifThumbnail;
+            ImageEnIO.LoadFromStream(F);
+            if ImageEnIO.Params.JPEG_Scale_Used > 1 then
+            begin
+              ImageWidth := AttachedIEBitmap.Width;
+              ImageHeight := AttachedIEBitmap.Height;
+            end
+            else
+            begin
+              ImageWidth := ImageEnIO.Params.Width;
+              ImageHeight := ImageEnIO.Params.Height;
+            end;
+          end;
+          AttachedIEBitmap.CopyToTBitmap(TempBitmap);
+        finally
+          F.Free;
+        end;
+      end;
+    finally
+      ImageEnIO.Free;
+      ImageEnProc.Free;
+      AttachedIEBitmap.Free;
+    end;
+    // Resize the thumb
+    // Need to lock/unlock the canvas here
+    OutBitmap.Canvas.Lock;
+    try
+      DestR := SpRectAspectRatio(ImageWidth, ImageHeight, ThumbW, ThumbH, talNone, True);
+      SpInitBitmap(OutBitmap, DestR.Right, DestR.Bottom, BgColor);
+      // StretchDraw is NOT THREADSAFE!!! Use SpStretchDraw instead
+      SpStretchDraw(TempBitmap, OutBitmap.Canvas, DestR, Subsampling);
+      Result := True;
+    finally
+      OutBitmap.Canvas.UnLock;
+    end;
+    Result := True;
+  finally
+    TempBitmap.Canvas.Unlock;
+    TempBitmap.Free;
+  end;
+end;
+{$ENDIF}
 
 function SpMakeThumbFromFile(Filename: string; OutBitmap: TBitmap; ThumbW,
   ThumbH: Integer; BgColor: TColor; SubSampling, ExifThumbnail, ExifOrientation: Boolean;
@@ -731,65 +872,79 @@ function SpCreateThumbInfoFromFile(NS: TNamespace; ThumbW, ThumbH: Integer;
   UseSubsampling, UseShellExtraction, UseExifThumbnail, UseExifOrientation: Boolean;
   BackgroundColor: TColor): TThumbInfo;
 var
-  B: TBitmap;
-  W, H: Integer;
+  Bitmap: TBitmap;
+  Width, Height: Integer;
   ThumbnailExtracted: Boolean;
 begin
   Result := nil;
-  if UseShellExtraction then begin
-    if Assigned(NS.ExtractImage) then begin
+  if UseShellExtraction then
+  begin
+    if Assigned(NS.ExtractImage) then
+    begin
       // IEIFLAG_OFFLINE: use only local content for rendering.
       // IEIFLAG_ORIGSIZE: render the image to the approximate size passed in prgSize, but crop it if necessary.
       NS.ExtractImage.Flags := NS.ExtractImage.Flags or IEIFLAG_OFFLINE or IEIFLAG_ORIGSIZE;
 
-      if NS.Folder then begin
+      if NS.Folder then
+      begin
         // The standard size for the folder image is 96x96
         NS.ExtractImage.Width := 96;
         NS.ExtractImage.Height := 96;
       end
-      else begin
+      else
+      begin
         // Use the maximum size for a shell extracted image, 256x256
         NS.ExtractImage.Width := 256; // ThumbW;
         NS.ExtractImage.Height := 256; // ThumbH;
       end;
       NS.ExtractImage.ImagePath;
-      B := NS.ExtractImage.Image;
-      if Assigned(B) then begin
+      Bitmap := NS.ExtractImage.Image;
+      if Assigned(Bitmap) then
+      begin
         // Use the BackgroundColor to make the extracted bitmap transparent
-        if UsesAlphaChannel(B) then
-          ConvertBitmapEx(B, B, BackgroundColor);
+        if UsesAlphaChannel(Bitmap) then
+          ConvertBitmapEx(Bitmap, Bitmap, BackgroundColor);
         Result := TThumbInfo.Create;
-        Result.Fill(NS.NameForParsing, '', '', NS.LastWriteDateTime, B.Width, B.Height, nil, 0);
-        Result.WriteBitmap(B);
-        B.Free; // NS.ExtractImage doesn't free the extracted Image bitmap
+        Result.Fill(NS.NameForParsing, '', '', NS.LastWriteDateTime, Bitmap.Width, Bitmap.Height, nil, 0);
+        Result.WriteBitmap(Bitmap);
+        Bitmap.Free; // NS.ExtractImage doesn't free the extracted Image bitmap
       end;
     end;
-  end else
+  end
+  else
   begin
     ThumbnailExtracted := False;
-    B := TBitmap.Create;
-    B.PixelFormat := pf32Bit; // Jim:  This needs to be done for images that use the Alpha Channel for Transparency
-    B.Canvas.Lock;
+    Bitmap := TBitmap.Create;
+    {$IFNDEF USEIMAGEEN}
+    Bitmap.PixelFormat := pf32Bit; // Jim:  This needs to be done for images that use the Alpha Channel for Transparency
+    {$ENDIF}
+    Bitmap.Canvas.Lock;
     try
       try
+        {$IFDEF USEIMAGEEN}
+        ThumbnailExtracted := SpMakeThumbFromFileImageEn(NS.NameForParsing, Bitmap, ThumbW, ThumbH,
+          clRed, UseSubsampling, UseExifThumbnail, UseExifOrientation, Width, Height);
+        {$ELSE}
         // Jim: Changed the Background so images that use the Alpha Channel for Transparency work correctly
-        ThumbnailExtracted := SpMakeThumbFromFile(NS.NameForParsing, B, ThumbW, ThumbH,
-          BackgroundColor, UseSubsampling, UseExifThumbnail, UseExifOrientation, W, H);
+        ThumbnailExtracted := SpMakeThumbFromFile(NS.NameForParsing, Bitmap, ThumbW, ThumbH,
+          BackgroundColor, UseSubsampling, UseExifThumbnail, UseExifOrientation, Width, Height);
         // Jim:  This needs to be done for images that use the Alpha Channel for Transparency
-        if ThumbnailExtracted and UsesAlphaChannel(B) then
-          ConvertBitmapEx(B, B, BackgroundColor);
+        if ThumbnailExtracted and UsesAlphaChannel(Bitmap) then
+          ConvertBitmapEx(Bitmap, Bitmap, BackgroundColor);
+        {$ENDIF}
       except
         // Don't raise any image errors
       end;
 
-      if ThumbnailExtracted then begin
+      if ThumbnailExtracted then
+      begin
         Result := TThumbInfo.Create;
-        Result.Fill(NS.NameForParsing, '', '', NS.LastWriteDateTime, W, H, nil, 0);
-        Result.WriteBitmap(B);
+        Result.Fill(NS.NameForParsing, '', '', NS.LastWriteDateTime, Width, Height, nil, 0);
+        Result.WriteBitmap(Bitmap);
       end;
     finally
-      B.Canvas.UnLock;
-      B.Free;
+      Bitmap.Canvas.Unlock;
+      Bitmap.Free;
     end;
   end;
 end;
@@ -1308,11 +1463,11 @@ begin
   Objects[Index] := Pointer(Value);
 end;
 
-//WMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWMWM
 { TThumbInfo }
 
 constructor TThumbInfo.Create;
 begin
+  inherited Create;
   FThumbBitmapStream := TMemoryStream.Create;
   FStreamSignature := DefaultStreamSignature;
 end;
@@ -1442,12 +1597,16 @@ end;
 
 function TThumbInfo.ReadBitmap(OutBitmap: TBitmap): Boolean;
 begin
-  Result := False;
-  if Assigned(FThumbBitmapStream) then begin
-    FThumbBitmapStream.Position := 0;
-    OutBitmap.LoadFromStream(FThumbBitmapStream);
-    FThumbBitmapStream.Position := 0;
-    Result := True;
+  Result := Assigned(OutBitmap);
+  if Result then
+  begin
+    try
+      FThumbBitmapStream.Position := 0;
+      OutBitmap.LoadFromStream(FThumbBitmapStream);
+      FThumbBitmapStream.Position := 0;
+    except
+      Result := False;
+    end;
   end;
 end;
 
@@ -1776,7 +1935,20 @@ var
 begin
   FValidImageFormats.Clear;
   with FValidImageFormats do begin
-    CommaText := '.jpg, .jpeg, .jif, .bmp, .emf, .wmf';
+    CommaText := '.jpg, .jpeg, .jpe, .jif, .bmp, .emf, .wmf';
+    {$IFDEF USEIMAGEEN}
+    CommaText := CommaText + ', .tif, .tiff, .fax, .g3n, .g3f, .xif, .gif, .pcx, .dib, .rle, .ico, .cur, .png, .dcm, .dic, .dicom' +
+      ', .v2, .tga, .targa, .vda, .icb, .vst, .pix, .pxm, .ppm, .pgm, .pbm, .wbmp, .jp2, .j2k, .jpc, .j2c, .dcx' +
+      ', .crw, .cr2, .dng, .nef, .raw, .raf, .x3f, .orf, .srf, .mrw, .dcr, .bay, .pef, .sr2, .arw, .kdc, .mef, .3fr, .k25, .erf, .cam, .cs1, .dc2, .dcs, .fff, .mdc, .mos, .nrw, .ptx, .pxn, .rdc, .rw2, .rwl, .iiq, .srw' +
+      ', .psd, .psb, .wdp, .hdp, .jxr, .dds, .heic, .heif, .heics, .avcs, .heifs, .webp, .avi, .mpe, .mpg, .mpeg, .wmv';
+    {$ELSE}
+    {$IFDEF USEENVISION}
+      //version 1.1
+      CommaText := CommaText + ', .png, .pcx, .pcc, .tif, .tiff, .dcx, .tga, .vst, .afi';
+      //version 2.0, eps (Encapsulated Postscript) and jp2 (JPEG2000 version)
+      //CommaText := CommaText + ', .eps, .jp2'; <<<<<<< still in beta
+    {$ENDIF}
+    {$ENDIF}
   end;
 
   if FillColors then begin
@@ -1813,7 +1985,7 @@ begin
   if Assigned(NS) then begin
     Ext := WideExtractFileExt(NS.NameForParsing);
     if FInvalidImageFormats.IndexOf(Ext) = -1 then
-      if (FValidImageFormats.IndexOf(Ext) > -1) then
+      if (FValidImageFormats.IndexOf(Ext) > -1) {$IFDEF USEIMAGEEN}or IsKnownFormat(Ext){$ENDIF} then
         Result := vffValid
       else
         if UseShellExtraction or (UseFoldersShellExtraction and NS.Folder) then

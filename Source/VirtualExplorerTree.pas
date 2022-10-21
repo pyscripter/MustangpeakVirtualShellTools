@@ -1,4 +1,4 @@
-unit VirtualExplorerTree;
+﻿unit VirtualExplorerTree;
 
 // Version 2.4.0
 //
@@ -134,6 +134,10 @@ uses
   SpTBXEditors,
   {$ENDIF SpTBX}
   Registry,
+  VirtualTrees.DataObject,
+  VirtualTrees.EditLink,
+  VirtualTrees.Header,
+  VirtualTrees.Types,
   VirtualTrees,
   MPShellUtilities,
   VirtualScrollbars,
@@ -182,8 +186,6 @@ const
   BORDER = 1;  // Single line border
 
   INVALIDFILECHAR = ['/', '\', ':', '*', '?', '"', '<', '>', '|'];
-
-  ID_HARDREFRESHTIMER = 204;
 
   TID_ICON = TID_START + 9990;
   TID_EXPANDMARK = TID_START + 9991;
@@ -348,7 +350,7 @@ type
     toImages,                 // Use images associated with files
     toThreadedImages,         // Create a thread to retrieve the images if used
     toLargeImages,            // Use the 32x32 system images
-    toMarkCutAndCopy         // Draw the imags differently if the items are cut or copied
+    toMarkCutAndCopy          // Draw the imags differently if the items are cut or copied
   );
   TVETImageOptions = set of TVETImageOption;
 
@@ -1071,8 +1073,8 @@ type
   public
     function CalculatePopupPoint(Node: PVirtualNode): TPoint;
     constructor Create(AnOwner: TCustomVirtualExplorerTree);
-    procedure HandleContextMenuMsg(Msg, wParam, lParam: integer; var Result: LRESULT);
-    procedure MenuSelect(Msg, wParam, lParam: integer; var Result: LRESULT);
+    procedure HandleContextMenuMsg(Msg: Cardinal; AWParam: WPARAM; ALParam: LPARAM; var Result: LRESULT);
+    procedure MenuSelect(Msg: Cardinal; AWParam: WPARAM; ALParam: LPARAM; var Result: LRESULT);
     procedure ResetState;
     procedure RightClick(XPos, YPos: Integer; ButtonState: TButtonState; Coordinates: TCoordType);
     function ShowContextMenuOfActiveNode(Point: TPoint): Boolean;
@@ -1327,8 +1329,6 @@ type
     FVETState: TVETStates;
     FDisableWaitCursors: Boolean;
     FOnRootRebuild: TVETOnRootRebuild;
-    FShellNotifyTimerHandle: THandle;
-    FShellNotifyQueue: TList;
     FExpandingByButtonClick: Boolean;
     FShellContextSubMenu: TPopupMenu;
     FShellContextSubMenuCaption: string;
@@ -1576,8 +1576,6 @@ type
     property ShellContextSubMenu: TPopupMenu read FShellContextSubMenu write FShellContextSubMenu;
     property ShellContextSubMenuCaption: string read FShellContextSubMenuCaption write FShellContextSubMenuCaption;
     property OkToShellNotifyDispatch: Boolean read GetOkToShellNotifyDispatch;   // IShellNotify
-    property ShellNotifyQueue: TList read FShellNotifyQueue write FShellNotifyQueue;
-    property ShellNotifyTimerHandle: THandle read FShellNotifyTimerHandle write FShellNotifyTimerHandle;
     property SortHelper: TShellSortHelper read FSortHelper write FSortHelper;
     property ThreadedEnum: Boolean read FThreadedEnum write FThreadedEnum default False;
     property ThreadedImagesEnabled: Boolean read FThreadedImagesEnabled write SetThreadedImagesEnabled;
@@ -1670,7 +1668,7 @@ type
   {$ENDIF}
   TVirtualExplorerTree = class(TCustomVirtualExplorerTree)
   public
-     property ColumnMenu;
+    property ColumnMenu;
     property SortHelper;
   published
     property Action;
@@ -1762,6 +1760,7 @@ type
     property OnAfterItemPaint;
     property OnAfterPaint;
     property OnBeforeCellPaint;
+    property OnBeforeGetCheckState;
     property OnBeforeItemErase;
     property OnBeforeItemPaint;
     property OnBeforePaint;
@@ -1945,6 +1944,7 @@ type
     property OnAfterItemPaint;
     property OnAfterPaint;
     property OnBeforeCellPaint;
+    property OnBeforeGetCheckState;
     property OnBeforeItemErase;
     property OnBeforeItemPaint;
     property OnBeforePaint;
@@ -2431,7 +2431,7 @@ type
     property ComboBoxStyle: TComboBoxStyle read GetComboBoxStyle write SetComboBoxStyle default cbsClassic;
     property DefaultNodeHeight: Cardinal read GetDefaultNodeHeight write SetDefaultNodeHeight default 17;
     property DropDownCount: integer read GetDropDownCount write SetDropDownCount default 8;
-    property Indent: integer read GetIndent write SetIndent default 10;
+    property Indent: integer read GetIndent write SetIndent default 18;
     property OnEnumFolder: TVETOnEnumFolder read GetOnEnumFolder write SetOnEnumFolder;
     property OnRollDown: TOnPopupRollDown read GetOnRollDown write SetOnRollDown;
     property OnRollUp: TOnPopupRollUp read GetOnRollUp write SetOnRollUp;
@@ -2921,6 +2921,7 @@ implementation
 
 uses
   TypInfo,
+  VirtualTrees.DragnDrop,
   {$IFDEF SpTBX}
   ColumnFormSpTBX,
   {$ELSE}
@@ -3140,9 +3141,9 @@ end;
 function TCustomVirtualExplorerTree.GetOkToShellNotifyDispatch: Boolean;
 begin
   if Assigned(ContextMenuManager) then
-    Result := not(IsAnyEditing or Dragging or ShellNotifySuspended or ContextMenuManager.MenuShown)
+    Result := not (IsAnyEditing or Dragging or ShellNotifySuspended or ContextMenuManager.MenuShown)
   else
-    Result := not(IsAnyEditing or Dragging or ShellNotifySuspended);
+    Result := not (IsAnyEditing or Dragging or ShellNotifySuspended);
 end;
 
 function TCustomVirtualExplorerTree.GetSelectedPIDL: PItemIDList;
@@ -3618,7 +3619,6 @@ begin
   ColumnMenu := TColumnMenu.Create(Self);
   ColumnMenuItemCount := 8;
   AutoFireChangeLink := True;
-  FShellNotifyQueue := TList.Create;
   RootFolder := rfDesktop;
   OnDragOver := DummyOnDragOver;
   FFileObjects := [foFolders];
@@ -3634,12 +3634,12 @@ begin
   FSelectedFiles := TStringList.Create;
 
   {$IF CompilerVersion >= 33}
-  FScaledSmallSysImages := TCommonVirtualImageList.Create(Owner);
+  FScaledSmallSysImages := TCommonVirtualImageList.Create(Self);
   FScaledSmallSysImages.SourceImageList := SmallSysImages;
   FScaledSmallSysImages.SetSize(MulDiv(SmallSysImages.Width, 96, Screen.PixelsPerInch),
     MulDiv(SmallSysImages.Height, 96, Screen.PixelsPerInch));
 
-  FScaledLargeSysImages := TCommonVirtualImageList.Create(Owner);
+  FScaledLargeSysImages := TCommonVirtualImageList.Create(Self);
   FScaledLargeSysImages.SourceImageList := LargeSysImages;
   FScaledLargeSysImages.SetSize(MulDiv(LargeSysImages.Width, 96, Screen.PixelsPerInch),
     MulDiv(LargeSysImages.Height, 96, Screen.PixelsPerInch));
@@ -3842,6 +3842,7 @@ end;
 
 destructor TCustomVirtualExplorerTree.Destroy;
 begin
+  Images := nil;
   // Clear the Tree in case the app accesses any of the helper objects
   ShellNotifyManager.UnRegisterExplorerWnd(Self);
   FreeAndNil(FEnumBkGndList);
@@ -3860,7 +3861,6 @@ begin
   FreeAndNil(FContextMenuManager);
   FreeAndNil(FSelectedPaths);
   FreeAndNil(FSelectedFiles);
-  FreeAndNil(FShellNotifyQueue);
   { In case we were using the hidden root node with toHideRootNode }
   FreeAndNil(PNodeData(InternalData(RootNode))^.Namespace);
   // Support Halt( );
@@ -4552,19 +4552,17 @@ procedure TCustomVirtualExplorerTree.DoInitNode(Parent, Node: PVirtualNode;
 { if it has been forced to be initialized when saving to the tree, etc.         }
 var
   Data: PNodeData;
-{  WS: string; }
   ParentNode: PVirtualNode;
   NS: TNamespace;
   StorageNode: TNodeStorage;
   Request: TExpandMarkThreadRequest;
- { DriveType: UINT;    }
 begin
   Data := InternalData(Node);
   if Assigned(Data) then
   begin
     if not Assigned(Parent) and (RootNodeCount < 2) and
-      not(toHideRootFolder in TreeOptions.VETFolderOptions)
-    then begin
+      not(toHideRootFolder in TreeOptions.VETFolderOptions) then
+    begin
       if Assigned(Data.Namespace) then
         FreeAndNil(Data.Namespace);
       if Assigned(Data.ColumnManager) then
@@ -4590,45 +4588,48 @@ begin
         begin
           Include(InitStates, ivsHasChildren);
           //  In Vista all "+" are threaded
-          Request := TExpandMarkThreadRequest.Create;
+          Request := TExpandMarkThreadRequest.Create;  // will be freed by the ThreadManager
           Request.ID := TID_EXPANDMARK;
           Request.Window := Self;
           Request.PIDL := PIDLMgr.CopyPIDL(Data.Namespace.AbsolutePIDL);
           Request.EnumFlags := BuildEnumFlags;
           Request.Priority := 1; // Icons are most important
           Request.Item := Node;
-          ExpandMarkThreadManager.AddRequest(Request, True)
-        end else
+          ExpandMarkThreadManager.AddRequest(Request, True);
+        end
+        else
           Include(InitStates, ivsHasChildren);
-      end else
+      end
+      else
       begin
         if Data.Namespace.Removable and (toFoldersExpandable in TreeOptions.VETFolderOptions) then
         begin
           if Data.Namespace.HasSubFolder then
             Include(InitStates, ivsHasChildren)
-          else
-          if foNonFolders in FileObjects then
+          else if foNonFolders in FileObjects then
           begin
             if Data.Namespace.SubItemsEx then
               Include(InitStates, ivsHasChildren);
-          end
-        end else
+          end;
+        end
+        else
         begin
           if (ItemHasChildren(Data.Namespace, Node, Parent) and (toFoldersExpandable in TreeOptions.VETFolderOptions)) then
             Include(InitStates, ivsHasChildren);
-        end
-      end
-    end
+        end;
+      end;
+    end;
   end;
   inherited;
 
   { Persistent checkbox support. Do it after inhertied in case the Application  }
   { manually changed the check state.                                           }
-  if (toCheckSupport in TreeOptions.MiscOptions) then
+  if toCheckSupport in TreeOptions.MiscOptions then
   begin
     // This is to fix a bug with VT 3.04 not checking newly initialized nodes when
     // they are expanded. Only effects the last initialized level.
     if (toAutoTristateTracking in TreeOptions.AutoOptions) and Assigned(Parent) and (Parent <> RootNode) then
+    begin
       if CheckState[Parent] = csCheckedNormal then
       begin
         Node.CheckState := csCheckedNormal;
@@ -4637,9 +4638,10 @@ begin
           StorageNode := Storage.Store(NS.AbsolutePIDL, [stChecks]);
           StorageNode.Storage.Check.CheckState := Node.CheckState;
           // Next step is already done
-          Exit
+          Exit;
         end;
       end;
+    end;
 
     { See if there is a stored state for the checkbox  }
     if ValidateNamespace(Node, NS) then
@@ -4651,15 +4653,17 @@ begin
          Node.CheckType := StorageNode.Storage.Check.CheckType;
          ParentNode := Node.Parent;
          if Assigned(ParentNode) and (toAutoTristateTracking in TreeOptions.AutoOptions) then
+         begin
            if ParentNode.CheckState = csUncheckedNormal then
            while Assigned(ParentNode) and (ParentNode <> RootNode) do
            begin
              ParentNode.CheckState := csMixedNormal;
              ParentNode := ParentNode.Parent
-           end
+           end;
+         end;
        end;
-    end
-  end
+    end;
+  end;
 end;
 
 function TCustomVirtualExplorerTree.DoKeyAction(var CharCode: Word;
@@ -4667,15 +4671,15 @@ function TCustomVirtualExplorerTree.DoKeyAction(var CharCode: Word;
 
     function FindLastDisplayed: PVirtualNode;
     var
-      i: Cardinal;
+      TotalHeight: Integer;
     begin
       Result := TopNode;
       if Assigned(Result) then
       begin
-        i := NodeHeight[Result];
-        while Assigned(Result) and (i < Cardinal(ClientHeight)) do
+        TotalHeight := NodeHeight[Result];
+        while Assigned(Result) and (TotalHeight < ClientHeight) do
         begin
-          i := i + NodeHeight[Result];
+          Inc(TotalHeight, NodeHeight[Result]);
           Result := Result.NextSibling
         end;
         if not Assigned(Result) then
@@ -4858,7 +4862,7 @@ begin
     begin
       StorageNode := Storage.Find(NS.AbsolutePIDL, [stUser, stChecks, stColumns]);
       if not NS.SetNameOf(Text) then
-        PostMessage(Handle, WM_INVALIDFILENAME, Integer( Node), 0)
+        PostMessage(Handle, WM_INVALIDFILENAME, WParam(Node), 0)
       else begin
         NS.InvalidateCache;
         // Update the storage with the new name
@@ -9057,18 +9061,18 @@ begin
   FOwner := AnOwner;
 end;
 
-procedure TContextMenuManager.HandleContextMenuMsg(Msg, wParam,
-  lParam: Integer; var Result: LRESULT);
+procedure TContextMenuManager.HandleContextMenuMsg(Msg: Cardinal;
+  AWParam: WPARAM; ALParam: LPARAM; var Result: LRESULT);
 var
   NS: TNamespace;
 begin
   if Assigned(Owner) then
     if Owner.ValidateNamespace(ActiveNode, NS) then
-      NS.HandleContextMenuMsg(Msg, wParam, lParam, Result);
+      NS.HandleContextMenuMsg(Msg, AWParam, ALParam, Result);
 end;
 
-procedure TContextMenuManager.MenuSelect(Msg, wParam, lParam: integer;
-  var Result: LRESULT);
+procedure TContextMenuManager.MenuSelect(Msg: Cardinal;
+  AWParam: WPARAM; ALParam: LPARAM; var Result: LRESULT);
 var
   NS: TNamespace;
   ChildMenu: hMenu;
@@ -9078,12 +9082,12 @@ begin
     if MenuShown then
       if Owner.ValidateNamespace(ActiveNode, NS) then
       begin
-        if HiWord(Longword( wParam)) and MF_POPUP <> 0 then
-          ChildMenu := GetSubMenu(LongWord( lParam), LoWord(Longword( wParam)))
+        if HiWord(AWParam) and MF_POPUP <> 0 then
+          ChildMenu := GetSubMenu(ALParam, LoWord(AWParam))
         else
           ChildMenu := 0;
-        Owner.DoContextMenuSelect(NS, LoWord(Longword( wParam)), ChildMenu,
-          HiWord(Longword( wParam)) and MF_MOUSESELECT <> 0);
+        Owner.DoContextMenuSelect(NS, LoWord(AWParam), ChildMenu,
+          HiWord(AWParam) and MF_MOUSESELECT <> 0);
       end
   end
 end;
@@ -9292,7 +9296,7 @@ begin
       end
     end
   end;
-  EnumFormatEtc := TEnumFormatEtc.Create(Owner, Temp);
+  EnumFormatEtc := TEnumFormatEtc.Create(Temp);
   if Assigned(EnumFormatEtc) then
     Result := S_OK
 end;
@@ -10198,7 +10202,7 @@ procedure TColumnMenuItem.Click;
     while not Result and Assigned(Node) do
     begin
       ColData := VST.GetNodeData(Node);
-      Result := WideStrComp(PWideChar(ColData^.Title), PWideChar( Text)) = 0;
+      Result := WideStrComp(PWideChar(ColData^.Title), PWideChar(Text)) = 0;
       Node := VST.GetNext(Node)
     end
   end;
@@ -10208,6 +10212,7 @@ var
   i: LongWord;
   VET: TCustomVirtualExplorerTree;
   ColData: PColumnData;
+  Column: TVirtualTreeColumn;
   VST: TVirtualStringTree;
   BackupHeader: TMemoryStream;
 begin
@@ -10227,14 +10232,16 @@ begin
             { Create the nodes ordered in columns items relative position }
             while (j < VET.Header.Columns.Count) and (VET.Header.Columns[j].Position <> i) do
               Inc(j);
-            if (VET.Header.Columns[j].Text <> '') and not IsDuplicate(VST, VET.Header.Columns[j].Text) then
+
+            Column := VET.Header.Columns[j];
+            if (Column.Text <> '') and not IsDuplicate(VST, Column.Text) then
             begin
               ColData := VST.GetNodeData(VST.AddChild(nil));
-              ColData.Title := VET.Header.Columns[j].Text;
-              ColData.Enabled := coVisible in VET.Header.Columns[j].Options;
-              ColData.Width := VET.Header.Columns[j].Width;
-              ColData.ColumnIndex := VET.Header.Columns[j].Index;
-            end
+              ColData.Title := Column.Text;
+              ColData.Enabled := coVisible in Column.Options;
+              ColData.Width := Column.Width;
+              ColData.ColumnIndex := Column.Index;
+            end;
           end;
           VET.Header.SaveToStream(BackupHeader);
           BackupHeader.Seek(0, soFromBeginning);
@@ -10247,7 +10254,8 @@ begin
           UpdateColumns(VET, VST);
           VET.StoreColumnState;
           VET.DoColumnUserChangedVisibility;
-        end else
+        end
+        else
         begin
           { Canceled restore the Header to original state before modifications }
           VET.BeginUpdate;
@@ -10260,12 +10268,13 @@ begin
         end;
       finally
         FormColumnSettings.Free;
-        FormColumnSettings := nil
+        FormColumnSettings := nil;
       end
     finally
-      BackupHeader.Free
+      BackupHeader.Free;
     end
-  end else
+  end
+  else
   begin
     if not Checked then
       VET.Header.Columns[ColumnIndex].Options := VET.Header.Columns[ColumnIndex].Options + [coVisible]
@@ -11677,12 +11686,10 @@ begin
   Result := TPopupAutoCompleteOptions.Create;
 end;
 
-function TCustomVirtualExplorerCombobox.CreatePopupAutoCompleteDropDown: TPopupAutoCompleteDropDown;
-
 // Overridable to create a custom version of TPopupAutoCompleteDropDown
-
+function TCustomVirtualExplorerCombobox.CreatePopupAutoCompleteDropDown: TPopupAutoCompleteDropDown;
 begin
-  Result := TPopupAutoCompleteDropDown.Create(Self)
+  Result := TPopupAutoCompleteDropDown.Create(Self);
 end;
 
 function TCustomVirtualExplorerCombobox.CreatePopupExplorerOptions: TPopupExplorerOptions;
@@ -11693,12 +11700,10 @@ begin
   Result := TPopupExplorerOptions.Create
 end;
 
-function TCustomVirtualExplorerCombobox.CreatePopupExplorerDropDown: TPopupExplorerDropDown;
-
 // Overridable to create a custom version of TPopupExplorerOptions
-
+function TCustomVirtualExplorerCombobox.CreatePopupExplorerDropDown: TPopupExplorerDropDown;
 begin
-   Result := TPopupExplorerDropDown.Create(Self)
+  Result := TPopupExplorerDropDown.Create(Self);
 end;
 
 procedure TCustomVirtualExplorerCombobox.CreateWnd;
@@ -11776,7 +11781,7 @@ begin
   RealignControls;
   PopupExplorerDropDown.Font.Assign(NewFont);
   PopupAutoCompleteDropDown.Font.Assign(NewFont);
-  Invalidate
+  Invalidate;
 end;
 
 procedure TCustomVirtualExplorerCombobox.DoPathChange(SelectedNamespace: TNamespace);
@@ -11950,9 +11955,11 @@ var
   CtlType, CtlState: Longword;
   OldRgn, Region: HRgn;
   OldColor: TColor;
-  rgbBk: Longword;
   ACanvas: TCanvas;
   DefaultDraw: Boolean;
+  Details: TThemedElementDetails;
+  LStyle: TCustomStyleServices;
+  State: TThemedComboBox;
   {$IFDEF SpTBX}
   IsHotTracked: Boolean;
   ComboButtonR: TRect;
@@ -11961,6 +11968,7 @@ begin
   // In NT4 the same Region is passed the back from the BeginPaint function as was
   // created in WM_EraseBkgnd.  Newer OS's seem to reset the region after the
   // WMEraseBkgnd and on returning from BeginPaint
+  LStyle := StyleServices;
   R := ClientRect;
   FButtonRect := BackGroundRect(crDropDownButton);
   ACanvas := TCanvas.Create;
@@ -11987,7 +11995,8 @@ begin
        SpDrawXPComboButton(ACanvas, ComboButtonR, Enabled, IsHotTracked,
          IsHotTracked, PopupExplorerDropDown.Visible, not UseRightToLeftReading);
        SpDrawXPEditFrame(Self, IsHotTracked);
-      end else
+      end
+      else
       {$ENDIF SpTBX}
       if UseThemes and ThemesActive then
       begin
@@ -11998,31 +12007,59 @@ begin
           DrawThemeBackground(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_DISABLED, R, nil);
         GetThemeBackgroundContentRect(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_NORMAL, R, @R);
         OldColor := Brush.Color;
-        Brush.Color := StyleServices.GetSystemColor(Color);
+        if LStyle.Enabled then
+          Brush.Color := LStyle.GetSystemColor(Color)
+        else
+          Brush.Color := Color;
         FillRect(PaintDC, R, Brush.Handle);
         Brush.Color := OldColor;
 
         { Draw the DropDown Button }
-        CtlType := CP_DROPDOWNBUTTON;
-        if Enabled then
-          CtlState := CBXS_NORMAL
+        if LStyle.Enabled then
+        begin
+          if Enabled then
+          begin
+            if (vcbsDropDownButtonPressed in FVETComboState) then
+              State := TThemedComboBox.tcDropDownButtonPressed
+            else if (vcbsOverDropDownButton in FVETComboState) then
+              State := TThemedComboBox.tcDropDownButtonHot
+            else
+              State := TThemedComboBox.tcDropDownButtonNormal
+          end
+          else
+            State := TThemedComboBox.tcDropDownButtonDisabled;
+
+          Details := LStyle.GetElementDetails(State);
+          LStyle.DrawElement(PaintDC, Details, FButtonRect, nil, CurrentPPI);
+        end
         else
-          CtlState := CBXS_DISABLED;
-        if (vcbsDropDownButtonPressed in FVETComboState) then
-          CtlState := CBXS_PRESSED;
-        if vcbsOverDropDownButton in FVETComboState then
-          CtlState := CBXS_HOT;
-         DrawThemeBackground(ThemeCombo, PaintDC, CtlType, CtlState, FButtonRect, nil)
-      end else
+        begin
+          CtlType := CP_DROPDOWNBUTTON;
+          if Enabled then
+            CtlState := CBXS_NORMAL
+          else
+            CtlState := CBXS_DISABLED;
+          if (vcbsDropDownButtonPressed in FVETComboState) then
+            CtlState := CBXS_PRESSED;
+          if vcbsOverDropDownButton in FVETComboState then
+            CtlState := CBXS_HOT;
+           DrawThemeBackground(ThemeCombo, PaintDC, CtlType, CtlState, FButtonRect, nil)
+        end;
+      end
+      else
       begin
         { Draw the Edit }
         if FBorderStyle = bsNone then
         begin
           OldColor := Brush.Color;
-          Brush.Color := StyleServices.GetSystemColor(Color);
+          if LStyle.Enabled then
+            Brush.Color := LStyle.GetSystemColor(Color)
+          else
+            Brush.Color := Color;
           FillRect(PaintDC, R, Brush.Handle);
           Brush.Color := OldColor;
-        end else
+        end
+        else
         begin
           if Flat then
             DrawEdge(PaintDC, R, EDGE_SUNKEN, BF_RECT or BF_FLAT)
@@ -12041,7 +12078,8 @@ begin
     { PostPaint }
     DefaultDraw := True;
     DoDraw(ACanvas, ClientRect, FButtonRect, FVETComboState, cdPostPaint, DefaultDraw);
-    if DefaultDraw then begin
+    if DefaultDraw then
+    begin
       if UseThemes and ThemesActive then
       begin
         { Draw the focus }
@@ -12051,7 +12089,10 @@ begin
           SubtractRect(R, R, BackGroundRect(crDropDownButton));
           InflateRect(R, -2, -2);
           OldColor := Brush.Color;
-          Brush.Color := StyleServices.GetSystemColor(clHighLight);
+          if LStyle.Enabled then
+            Brush.Color := LStyle.GetSystemColor(clHighLight)
+          else
+            Brush.Color := clHighLight;
           FillRect(PaintDC, R, Brush.Handle);
           Brush.Color := OldColor;
           DrawFocusRect(PaintDC, R);
@@ -12060,12 +12101,16 @@ begin
         if Active and (not ComboEdit.IsEditing or (csDesigning in ComponentState)) then
         begin
           R := BackGroundRect(crImage);
-          if Enabled then
-            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_NORMAL, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex)
-          else
-            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_DISABLED, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex);
+          PopupExplorerDropDown.FPopupExplorerTree.FScaledSmallSysImages.Draw(
+            ACanvas, R.Left, R.Top, ImageIndex, Enabled);
+
+//          if Enabled then
+//            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_NORMAL, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex)
+//          else
+//            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_DISABLED, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex);
         end;
-      end else
+      end
+      else
       begin
         { Draw the focus }
         R := BackGroundRect(crBackGround);
@@ -12079,16 +12124,14 @@ begin
           FillRect(PaintDC, R, Brush.Handle);
           Brush.Color := OldColor;
           DrawFocusRect(PaintDC, R);
-          rgbBk := ColorToRGB(clHighLight);
-        end else
-          rgbBk := ColorToRGB(Color);
+        end;
 
         { Draw the Image }
         if Active and (not ComboEdit.IsEditing or (csDesigning in ComponentState)) then
         begin
           R := BackGroundRect(crImage);
-          ImageList_DrawEx(SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex, PaintDC,
-            R.Left, R.Top, R.Right - R.Left, R.Bottom - R.Top, rgbBk, CLR_NONE, ILD_NORMAL);
+          PopupExplorerDropDown.FPopupExplorerTree.FScaledSmallSysImages.Draw(
+            ACanvas, R.Left, R.Top, ImageIndex, Enabled);
         end;
       end;
     end;
@@ -12099,9 +12142,10 @@ begin
       SelectObject(PaintDC, OldRgn);
       DeleteObject(Region);
     end;
-    ACanvas.Handle := 0;
+    if Assigned(ACanvas) then
+      ACanvas.Handle := 0;
     ACanvas.Free;
-  end
+  end;
 end;
 
 procedure TCustomVirtualExplorerCombobox.RealignControls;
@@ -13143,10 +13187,9 @@ begin
   RefreshScrollbar
 end;
 
-function TPopupExplorerDropDown.CreatePopupExplorerTree: TPopupExplorerTree;
-
 // Overridable so a decendant of TPopupExplorerTree may be created
 
+function TPopupExplorerDropDown.CreatePopupExplorerTree: TPopupExplorerTree;
 begin
   Result := TPopupExplorerTree.Create(Self);
 end;
@@ -13224,7 +13267,7 @@ begin
     if poThemeAware in Value then
     begin
       PaintOptions := PaintOptions + [toThemeAware];
-      VETFolderOptions := VETFolderOptions - [toNoUseVETColorsProp];
+      VETFolderOptions := VETFolderOptions + [toNoUseVETColorsProp];
       RemoteScrollbar.Options := RemoteScrollbar.Options + [soThemeAware]
     end else
     begin
@@ -14300,9 +14343,10 @@ end;
 constructor TPopupExplorerTree.Create(AOwner: TComponent);
 begin
   inherited;
-  Indent := 10;
+  Indent := 18;
+  LoadDefaultOptions;
   // Use the Font.Color Property
-  TreeOptions.VETFolderOptions := TreeOptions.VETFolderOptions + [toNoUseVETColorsProp];
+  //TreeOptions.VETFolderOptions := TreeOptions.VETFolderOptions + [toNoUseVETColorsProp];
 end;
 
 procedure TPopupExplorerTree.CreateParams(var Params: TCreateParams);
@@ -15113,10 +15157,8 @@ begin
   DropDownCount := 8;
 end;
 
-function TPopupAutoCompleteDropDown.CreatePopupAutoCompleteTree: TPopupAutoCompleteTree;
-
 // Overridable so a decendant of TPopupAutoCompleteTree may be created and used
-
+function TPopupAutoCompleteDropDown.CreatePopupAutoCompleteTree: TPopupAutoCompleteTree;
 begin
   Result := TPopupAutoCompleteTree.Create(Self);
 end;
@@ -15498,6 +15540,14 @@ initialization
   TCustomStyleEngine.RegisterStyleHook(TVirtualExplorerListview, TVclStyleScrollBarsHook);
 
 finalization
+  //Added an ugly workaround for a Vcl bug.
+  try
+    TCustomStyleEngine.UnregisterStyleHook(TVirtualExplorerTree, TVclStyleScrollBarsHook);
+    TCustomStyleEngine.UnregisterStyleHook(TVirtualExplorerTreeview, TVclStyleScrollBarsHook);
+    TCustomStyleEngine.UnregisterStyleHook(TVirtualExplorerListview, TVclStyleScrollBarsHook);
+  except
+  end;
+
   FreeAndNil(ViewManager);
   FreeThemeLibrary;
   FreeAndNil(VETChangeDispatch);

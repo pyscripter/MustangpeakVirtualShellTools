@@ -27,7 +27,7 @@
 // if you forget to add the packages to the "Requires" section.
 
 // Define USE_TOOLBAR_TB2K if you use Toolbar 2000, SpTBXLib
-{$DEFINE USE_TOOLBAR_TB2K}
+{.$DEFINE USE_TOOLBAR_TB2K}
 // Define SpTBX if you use SpTBXLib
 {.$DEFINE SpTBX}
 
@@ -43,3 +43,8 @@
 {$DEFINE EXPLORERTREEVIEW_L}
 // -----------------------------------------------------------------------------
 
+// ImageEn SUPPORT
+// You must add the ImageEn package to the VirtualShellToolsD.dpk "Requires" section PKIECtrl28
+// You may need to add Path to ImageEn: Delphi Compiler, Windows 64bit, Search path \ImageEn\Source\Delphi11Alexandria_64
+
+// {$DEFINE USEIMAGEEN}

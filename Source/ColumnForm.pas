@@ -37,15 +37,15 @@ type
 type
   TFormColumnSettings = class(TForm)
     Bevel1: TBevel;
-    Label2: TLabel;
-    Label3: TLabel;
     Label1: TLabel;
+    Label2: TLabel;
     EditPixelWidth: TEdit;
     CheckBoxLiveUpdate: TCheckBox;
     ButtonOk: TButton;
     ButtonCancel: TButton;
     VSTColumnNames: TVirtualStringTree;
     Panel1: TPanel;
+    pnBottom: TPanel;
     procedure FormCreate(Sender: TObject);
     procedure VSTColumnNamesInitNode(Sender: TBaseVirtualTree; ParentNode,
       Node: PVirtualNode; var InitialStates: TVirtualNodeInitStates);
@@ -69,19 +69,15 @@ type
       Node: PVirtualNode);
     procedure CheckBoxLiveUpdateClick(Sender: TObject);
     procedure FormKeyPress(Sender: TObject; var Key: Char);
-    procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure VSTColumnNamesGetText(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
       var CellText: string);
-  private
+  strict private
     FDragNode: PVirtualNode;
     FOnVETUpdate: TVETUpdate;
-  private
-    { Private declarations }
     property DragNode: PVirtualNode read FDragNode write FDragNode;
   public
-    { Public declarations }
     property OnVETUpdate: TVETUpdate read FOnVETUpdate write FOnVETUpdate;
   end;
 
@@ -98,11 +94,12 @@ var
 
 implementation
 
-// < FR added 11-28-05 >
-uses VirtualResources;
-// </ FR added 11-28-05 >
+{$R *.dfm}
 
-{$R *.DFM}
+uses
+  VirtualResources;
+
+{ TFormColumnSettings }
 
 procedure TFormColumnSettings.FormCreate(Sender: TObject);
 begin
@@ -115,7 +112,7 @@ procedure TFormColumnSettings.VSTColumnNamesInitNode(
 var
   ColData: PColumnData;
 begin
-  ColData := PColumnData( Sender.GetNodeData(Node));
+  ColData := PColumnData(Sender.GetNodeData(Node));
   Node.CheckType := ctCheckBox;
   if ColData.Enabled then
     Node.CheckState := csCheckedNormal
@@ -127,7 +124,7 @@ procedure TFormColumnSettings.VSTColumnNamesChecking(
 var
   ColData: PColumnData;
 begin
-  ColData := PColumnData( Sender.GetNodeData(Node));
+  ColData := PColumnData(Sender.GetNodeData(Node));
   ColData.Enabled := NewState = csCheckedNormal;
   if CheckBoxLiveUpdate.Checked and Assigned(OnVETUpdate) then
     OnVetUpdate(Self);
@@ -189,7 +186,7 @@ var
 begin
   if ((Key < #48) or (Key > #57)) and not((Key = #8) or (Key = #13)) then
   begin
-    beep;
+    Beep;
     Key := #0;
   end;
   if (Key = #13) then
@@ -198,7 +195,7 @@ begin
     if Assigned(Node) then
     begin
       ColData := PColumnData( VSTColumnNames.GetNodeData(Node));
-      ColData.Width := StrToInt(EditPixelWidth.Text);
+      ColData.Width := MulDiv(StrToInt(EditPixelWidth.Text), CurrentPPI, Screen.DefaultPixelsPerInch);
       if CheckBoxLiveUpdate.Checked and Assigned(OnVETUpdate) then
         OnVetUpdate(Self);
     end;
@@ -233,8 +230,8 @@ begin
   Node := VSTColumnNames.GetFirstSelected;
   if Assigned(Node) then
   begin
-    ColData := PColumnData( VSTColumnNames.GetNodeData(Node));
-    ColData.Width := StrToInt(EditPixelWidth.Text);
+    ColData := PColumnData(VSTColumnNames.GetNodeData(Node));
+    ColData.Width := MulDiv(StrToInt(EditPixelWidth.Text), CurrentPPI, Screen.DefaultPixelsPerInch);
   end;
   if CheckBoxLiveUpdate.Checked and Assigned(OnVETUpdate) then
     OnVetUpdate(Self);
@@ -245,7 +242,7 @@ procedure TFormColumnSettings.VSTColumnNamesFreeNode(
 var
   ColData: PColumnData;
 begin
-  ColData := PColumnData( Sender.GetNodeData(Node));
+  ColData := PColumnData(Sender.GetNodeData(Node));
   Finalize(ColData^);
 end;
 
@@ -264,33 +261,16 @@ begin
     ButtonCancel.Click
 end;
 
-procedure TFormColumnSettings.FormResize(Sender: TObject);
-const
-  TextMargin = 4;
-var
-  B: integer;
-begin
-  B := (Width - (Label2.Width + Label3.Width + EditPixelWidth.Width)) div 2;
-  Label2.Left := B - 2 * TextMargin;
-  EditPixelWidth.Left := (Label2.Left + Label2.Width) + TextMargin;
-  Label3.Left := (EditPixelWidth.Left + EditPixelWidth.Width) + TextMargin;
-  CheckBoxLiveUpdate.Left := Label2.Left;
-end;
-
-// < FR added 11-28-05 >
 // Here we load the strings variables. This allow runtime customization.
 procedure TFormColumnSettings.FormShow(Sender: TObject);
 begin
   Caption := STR_COLUMNDLG_CAPTION;
   Label1.Caption := STR_COLUMNDLG_LABEL1;
   Label2.Caption := STR_COLUMNDLG_LABEL2;
-  Label3.Caption := STR_COLUMNDLG_LABEL3;
   CheckBoxLiveUpdate.Caption := STR_COLUMNDLG_CHECKBOXLIVEUPDATE;
   ButtonOk.Caption := STR_COLUMNDLG_BUTTONOK;
   ButtonCancel.Caption := STR_COLUMNDLG_BUTTONCANCEL;
-  VSTColumnNames.CheckImageKind := COLUMNDLG_CHKSTYLE;
 end;
-// </ FR added 11-28-05 >
 
 procedure TFormColumnSettings.VSTColumnNamesGetText(Sender: TBaseVirtualTree;
   Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
@@ -298,7 +278,7 @@ procedure TFormColumnSettings.VSTColumnNamesGetText(Sender: TBaseVirtualTree;
 var
   ColData: PColumnData;
 begin
-  ColData := PColumnData( Sender.GetNodeData(Node));
+  ColData := PColumnData(Sender.GetNodeData(Node));
   CellText := ColData.Title
 end;
 

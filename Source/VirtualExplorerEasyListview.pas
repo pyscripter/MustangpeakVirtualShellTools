@@ -1130,7 +1130,6 @@ type
   [ComponentPlatformsAttribute(pidWin32 or pidWin64)]
   {$IFEND}
   TVirtualExplorerEasyListview = class(TCustomVirtualExplorerEasyListview)
-  private
   public
     property AllowHiddenCheckedItems;
     property CategoryInfo;
@@ -1837,7 +1836,7 @@ procedure LoadListviewWithColumnArray(Listview: TCustomVirtualExplorerEasyListvi
 implementation
 
 uses
-  TypInfo, System.Types, System.UITypes, Dialogs;
+  TypInfo, System.Types, System.UITypes, Dialogs, Vcl.Forms;
 
 type
   TEasySelectionManagerHack = class(TEasySelectionManager);
@@ -2139,6 +2138,8 @@ procedure AddThumbRequest(Window: TWinControl; Item: TExplorerItem;
   ThumbSize: TPoint; UseExifThumbnail, UseExifOrientation, UseShellExtraction,
   UseSubsampling, IsResizing: Boolean; ThumbRequestClassCallback: TThumbThreadCreateProc);
 // Send a thumb request to the GlobalThreadManager
+const
+  cPriority = 50;
 var
   ThumbRequest: TEasyThumbnailThreadRequest;
 begin
@@ -2152,7 +2153,7 @@ begin
     ThumbRequest.Window := Window;
     ThumbRequest.Item := Item;
     ThumbRequest.ID := TID_THUMBNAIL;
-    ThumbRequest.Priority := 50;
+    ThumbRequest.Priority := cPriority;
     ThumbRequest.BackgroundColor := TWinControlCracker(Window).Color;
     ThumbRequest.ThumbSize := ThumbSize;
     ThumbRequest.UseExifThumbnail := UseExifThumbnail;
@@ -2163,7 +2164,7 @@ begin
     if IsResizing then
       Item.Namespace.States := Item.Namespace.States + [nsThreadedImageResizing]
     else
-      Item.Namespace.States := Item.Namespace.States + [nsThreadedImageLoading];
+      Item.Namespace.States := Item.Namespace.States + [nsThreadedImageLoading] - [nsThreadedImageLoaded];
     GlobalThreadManager.AddRequest(ThumbRequest, True);
   end;
 end;
@@ -2222,6 +2223,8 @@ end;
 { TVirtualEasyListview }
 
 constructor TCustomVirtualExplorerEasyListview.Create(AOwner: TComponent);
+var
+  lImageList: TCommonVirtualImageList;
 begin
   inherited Create(AOwner);
   Active := False;
@@ -2243,9 +2246,31 @@ begin
   RootFolder := rfDesktop;
   FFileObjects := [foFolders, foNonFolders];
   FOptions := [eloBrowseExecuteFolder, eloBrowseExecuteFolderShortcut, eloBrowseExecuteZipFolder, eloExecuteOnDblClick, eloThreadedImages, eloThreadedDetails];
-  ImagesSmall := SmallSysImages;
-  ImagesLarge := LargeSysImages;
-  ImagesExLarge := ExtraLargeSysImages;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := SmallSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesSmall := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := LargeSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesLarge := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := ExtraLargeSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesExLarge := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := JumboSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesJumbo := lImageList;
+
   Groups.HideFromDFM := True;
   Header.Columns.HideFromDFM := True;
   SHGetMalloc(FMalloc);
@@ -3187,7 +3212,7 @@ end;
 
 procedure TCustomVirtualExplorerEasyListview.ColumnHeaderMenuItemClick(Sender: TObject);
 
-  function IsDuplicate(VST: TVirtualStringTree; Text: string): Boolean;
+  function IsDuplicate(VST: TVirtualStringTree; const Text: string): Boolean;
   var
     ColData: PColumnData;
     Node: PVirtualNode;
@@ -3197,9 +3222,9 @@ procedure TCustomVirtualExplorerEasyListview.ColumnHeaderMenuItemClick(Sender: T
     while not Result and Assigned(Node) do
     begin
       ColData := VST.GetNodeData(Node);
-      Result := WideStrComp(PWideChar(ColData^.Title), PWideChar( Text)) = 0;
-      Node := VST.GetNext(Node)
-    end
+      Result := WideStrComp(PWideChar(ColData^.Title), PWideChar(Text)) = 0;
+      Node := VST.GetNext(Node);
+    end;
   end;
 
 var
@@ -3211,6 +3236,7 @@ var
   ColumnSettings: TFormColumnSettings;
   ColumnNames: TVirtualStringTree;
   ColData: PColumnData;
+  Column: TEasyColumn;
   BackupHeader: TMemoryStream;
   i, j, Count: Integer;
 begin
@@ -3222,57 +3248,63 @@ begin
   Count := ColumnHeaderMenu.Items.Count;
   {$ENDIF}
 
-  if Item.Tag = Count - 1 then
-  begin
-    ColumnSettings := TFormColumnSettings.Create(nil);
+  BackupHeader := TMemoryStream.Create;
+  try
+    if Item.Tag = Count - 1 then
+    begin
+      ColumnSettings := TFormColumnSettings.Create(nil);
 
-    BackupHeader := TMemoryStream.Create;
-    ColumnNames := ColumnSettings.VSTColumnNames;
-    ColumnNames.BeginUpdate;
-    try
-      for i := 0 to Header.Columns.Count - 1 do
-      begin
-        j := 0;
-        { Create the nodes ordered in columns items relative position }
-        while (j < Header.Columns.Count) and (Header.Columns[j].Position <> i) do
-          Inc(j);
-        if (Header.Columns[j].Caption <> '') and not IsDuplicate(ColumnNames, Header.Columns[j].Caption) then
+      ColumnNames := ColumnSettings.VSTColumnNames;
+      ColumnNames.BeginUpdate;
+      try
+        for i := 0 to Header.Columns.Count - 1 do
         begin
-          ColData := ColumnNames.GetNodeData(ColumnNames.AddChild(nil));
-          ColData.Title := Header.Columns[j].Caption;
-          ColData.Enabled :=  Header.Columns[j].Visible;
-          ColData.Width := Header.Columns[j].Width;
-          ColData.ColumnIndex := Header.Columns[j].Index;
+          j := 0;
+          { Create the nodes ordered in columns items relative position }
+          while (j < Header.Columns.Count) and (Header.Columns[j].Position <> i) do
+            Inc(j);
+
+          Column := Header.Columns[j];
+          if (Column.Caption <> '') and not IsDuplicate(ColumnNames, Column.Caption) then
+          begin
+            ColData := ColumnNames.GetNodeData(ColumnNames.AddChild(nil));
+            ColData.Title := Column.Caption;
+            ColData.Enabled := Column.Visible;
+            ColData.Width := Column.Width;
+            ColData.ColumnIndex := Column.Index;
+          end;
+        end;
+        Header.SaveToStream(BackupHeader);
+        BackupHeader.Seek(0, soFromBeginning);
+      finally
+        ColumnNames.EndUpdate;
+      end;
+
+      ColumnSettings.OnVETUpdate := ColumnSettingCallback;
+      if ColumnSettings.ShowModal = mrOk then
+      begin
+        UpdateColumnsFromDialog(ColumnNames);
+        DoColumnStructureChange;
+      end
+      else
+      begin
+        BeginUpdate;
+        try
+          Header.LoadFromStream(BackupHeader);
+        finally
+          EndUpdate;
         end
       end;
-      Header.SaveToStream(BackupHeader);
-      BackupHeader.Seek(0, soFromBeginning);
-    finally
-      ColumnNames.EndUpdate;
-    end;
-
-    ColumnSettings.OnVETUpdate := ColumnSettingCallback;
-    if ColumnSettings.ShowModal = mrOk then
+      ColumnSettings.Release;
+    end
+    else
     begin
-      UpdateColumnsFromDialog(ColumnNames);
+      Header.Columns[Item.Tag].Visible := not Item.Checked;
       DoColumnStructureChange;
-    end else
-    begin
-      BeginUpdate;
-      try
-        Header.LoadFromStream(BackupHeader);
-      finally
-        EndUpdate
-      end
     end;
-
+  finally
     BackupHeader.Free;
-    ColumnSettings.Release
-  end else
-  begin
-    Header.Columns[Item.Tag].Visible := not Item.Checked;
-    DoColumnStructureChange;
-  end
+  end;
 end;
 
 procedure TCustomVirtualExplorerEasyListview.ColumnSettingCallback(Sender: TObject);
@@ -4089,7 +4121,7 @@ end;
 
 function TCustomVirtualExplorerEasyListview.ValidateThumbnail(Item: TEasyItem; var ThumbInfo: TThumbInfo): Boolean;
 begin
-   if Assigned(Item) then
+   if Item is TExplorerItem then
     ThumbInfo := TExplorerItem(Item).ThumbInfo
   else
     ThumbInfo := nil;
@@ -4545,7 +4577,7 @@ begin
         try
           ACanvas.Handle := GetDC(0);
           R := Item.View.ItemRect(Item, nil, ertText);
-          Item.View.LoadTextFont(Item, 0, ACanvas, True);
+          Item.View.LoadTextFont(Item, ACanvas, True);
           TextSize := TextExtentW(Item.Caption, ACanvas);
           if RectWidth(R) < TextSize.cx then
             AText := Item.Namespace.NameInFolder + #13#10 + AText;
@@ -4829,9 +4861,9 @@ end;
 procedure TCustomVirtualExplorerEasyListview.DoItemThumbnailDraw(Item: TEasyItem; ACanvas: TCanvas; ARect: TRect; AlphaBlender: TEasyAlphaBlender; var DoDefault: Boolean);
 var
   NS: TNamespace;
-  T: TThumbInfo;
-  VFF: TValidImageFileFormat;
-  ThumbSize, Sz: TPoint;
+  ThumbInfo: TThumbInfo;
+  FileFormat: TValidImageFileFormat;
+  ThumbSize, Size: TPoint;
   ExplorerItem: TExplorerItem;
 begin
   if Assigned(FOnBeforeItemThumbnailDraw) then
@@ -4840,18 +4872,19 @@ begin
   begin
     if ThreadedThumbnailsEnabled and not ThumbsManager.Updating and (NS.States * [nsThreadedImageLoaded, nsThreadedImageLoading, nsThreadedImageResizing] = []) then
     begin
-      if not ThumbsManager.UseEndScrollDraw
-        or (ThumbsManager.UseEndScrollDraw and not (ebcsScrolling in States)) then
+      if not ThumbsManager.UseEndScrollDraw or
+        (ThumbsManager.UseEndScrollDraw and not (ebcsScrolling in States)) then
       begin
-      VFF := ThumbsManager.IsValidImageFileFormat(NS);
-      if VFF <> vffInvalid then
-      begin
-        ThumbSize.X := Max(RectWidth(ARect), ThumbsManager.MaxThumbWidth);
-        ThumbSize.Y := Max(RectHeight(ARect), ThumbsManager.MaxThumbHeight);
-        Enqueue(NS, Item, ThumbSize, VFF = vffUnknown, False);
+        FileFormat := ThumbsManager.IsValidImageFileFormat(NS);
+        if FileFormat <> vffInvalid then
+        begin
+          ThumbSize.X := Max(RectWidth(ARect), ThumbsManager.MaxThumbWidth);
+          ThumbSize.Y := Max(RectHeight(ARect), ThumbsManager.MaxThumbHeight);
+          Enqueue(NS, Item, ThumbSize, FileFormat = vffUnknown, False);
         end;
       end;
-    end else
+    end
+    else
     begin
       if (ebcsPrinting in States) and not (nsThreadedImageLoaded in NS.States) then
       begin
@@ -4859,40 +4892,38 @@ begin
         // Force the thumbnail loaded
         ThumbSize.X := Max(RectWidth(ARect), ThumbsManager.MaxThumbWidth);
         ThumbSize.Y := Max(RectHeight(ARect), ThumbsManager.MaxThumbHeight);
-        T := SpCreateThumbInfoFromFile(ExplorerItem.Namespace, ThumbSize.X, ThumbSize.Y, True, True, True, True, Color);
-        if Assigned(T) then
+        ThumbInfo := SpCreateThumbInfoFromFile(ExplorerItem.Namespace, ThumbSize.X, ThumbSize.Y, True, True, True, True, Color);
+        if Assigned(ThumbInfo) then
         try
           if not Assigned(ExplorerItem.ThumbInfo) then
             ExplorerItem.ThumbInfo := TThumbInfo.Create;
           if Assigned(ExplorerItem.ThumbInfo) then
           begin
-            ExplorerItem.ThumbInfo.Assign(T);
+            ExplorerItem.ThumbInfo.Assign(ThumbInfo);
             ExplorerItem.Namespace.States := ExplorerItem.Namespace.States - [nsThreadedImageLoading, nsThreadedImageResizing] + [nsThreadedImageLoaded]
-          end
+          end;
         finally
-          T.Free
+          ThumbInfo.Free;
         end
       end;
-      if (nsThreadedImageLoaded in NS.States) and ValidateThumbnail(Item, T) then
+      if (nsThreadedImageLoaded in NS.States) and ValidateThumbnail(Item, ThumbInfo) then
       begin
         ThumbSize.X := Max(RectWidth(ARect), ThumbsManager.MaxThumbWidth);
         ThumbSize.Y := Max(RectHeight(ARect), ThumbsManager.MaxThumbHeight);
-        Sz := T.ThumbSize;
-        if (T.ImageWidth = 0) or (T.ImageHeight = 0) then
-          Sz := T.ThumbSize
+        if (ThumbInfo.ImageWidth = 0) or (ThumbInfo.ImageHeight = 0) then
+          Size := ThumbInfo.ThumbSize
         else
-          Sz := Point(T.ImageWidth, T.ImageHeight);
+          Size := Point(ThumbInfo.ImageWidth, ThumbInfo.ImageHeight);
 
         // Do we need to resize the thumbnails?
         // ShellExtracted items will not be resized
         if not (nsThreadedImageResizing in NS.States) and
-          (Sz.X < ThumbSize.X) and (Sz.Y < ThumbSize.Y) and
-          (Sz.X < T.ImageWidth) and (Sz.Y < T.ImageHeight) then
-        begin
+          (Size.X < ThumbSize.X) and (Size.Y < ThumbSize.Y) and
+          (Size.X < ThumbInfo.ImageWidth) and (Size.Y < ThumbInfo.ImageHeight) 
+        then
           Enqueue(NS, Item, ThumbSize, ThumbsManager.IsValidImageFileFormat(NS) = vffUnknown, True);
-        end;
 
-        T.Draw(ACanvas, ARect, ThumbsManager.Alignment, ThumbsManager.Stretch);
+        ThumbInfo.Draw(ACanvas, ARect, ThumbsManager.Alignment, ThumbsManager.Stretch);
 
         if ShowInactive then
         begin
@@ -5231,57 +5262,54 @@ end;
 procedure TCustomVirtualExplorerEasyListview.DoThreadCallback(var Msg: TWMThreadRequest);
 var
   NS: TNamespace;
-  AnItem: TExplorerItem;
+  Item: TExplorerItem;
+  Request: TShellIconThreadRequest;
 begin
   try
     inherited;
-    AnItem := TExplorerItem(Msg.Request.Item);
+    Item := TObject(Msg.Request.Item) as TExplorerItem;
     // this is not efficient but once in a while this will cause a problem
     // that seems like the items did not get flushed from the thread before the
-    // list is cleared.  It happens only once is a blue moon.  Can't seem to figure
+    // list is cleared. It happens only once is a blue moon. Can't seem to figure
     // it out.
-    if ItemBelongsToList(AnItem) then
+    if ItemBelongsToList(Item) then
     begin
       // DON'T RELEASE THE REQUEST IN THE CALLBACK
       if Assigned(OnThreadCallback) then
         OnThreadCallBack(Self, Msg);
       case Msg.RequestID of
         TID_ICON:
+          if ValidateNamespace(Item, NS) then
           begin
-            if ValidateNamespace(AnItem, NS) then
-            begin
-              NS.SetIconIndexByThread(TShellIconThreadRequest( Msg.Request).ImageIndex, TShellIconThreadRequest( Msg.Request).OverlayIndex, True);
-              Groups.InvalidateItem(AnItem, False);
-            end
+            Request := Msg.Request as TShellIconThreadRequest;
+            NS.SetIconIndexByThread(Request.ImageIndex, Request.OverlayIndex, True);
+            Groups.InvalidateItem(Item, False);
           end;
         TID_THUMBNAIL:
+          if ValidateNamespace(Msg.Request.Item, NS) then
           begin
-            if ValidateNamespace(Msg.Request.Item, NS) then
+            // Clone the ThumbInfo
+            if Msg.Request.Tag <> 0 then
             begin
-              NS.States := (NS.States - [nsThreadedImageLoading]) + [nsThreadedImageLoaded];
-              // Clone the ThumbInfo
-              if Msg.Request.Tag > 0 then begin
-                if not Assigned(AnItem.ThumbInfo) then
-                  AnItem.ThumbInfo := TThumbInfo.Create;
-                if nsThreadedImageResizing in NS.States then
-                  NS.States := NS.States - [nsThreadedImageResizing];
-                AnItem.ThumbInfo.Assign(TThumbInfo(Msg.Request.Tag));
-                Groups.InvalidateItem(AnItem, False);
-              end;
+              if Item.ThumbInfo = nil then
+                Item.ThumbInfo := TThumbInfo.Create;
+              if nsThreadedImageResizing in NS.States then
+                NS.States := NS.States - [nsThreadedImageResizing];
+              Item.ThumbInfo.Assign(TThumbInfo(Msg.Request.Tag));
+              Groups.InvalidateItem(Item, False);
             end;
+            NS.States := NS.States - [nsThreadedImageLoading] + [nsThreadedImageLoaded];
           end;
         TID_DETAILS:
+          if ValidateNamespace(Item, NS) then
           begin
-            if ValidateNamespace(AnItem, NS) then
-            begin
-              NS.TileDetail := TCommonIntegerDynArray(TEasyDetailsThreadRequest(Msg.Request).Details);
-              PackTileStrings(NS);
-              NS.States := (NS.States - [nsThreadedTileInfoLoading]) + [nsThreadedTileInfoLoaded];
-              Groups.InvalidateItem(AnItem, False);
-            end;
+            NS.TileDetail := (Msg.Request as TEasyDetailsThreadRequest).Details;
+            PackTileStrings(NS);
+            NS.States := NS.States - [nsThreadedTileInfoLoading] + [nsThreadedTileInfoLoaded];
+            Groups.InvalidateItem(Item, False);
           end;
-      end
-    end
+      end;
+    end;
   finally
     Msg.Request.Release;
   end
@@ -5729,15 +5757,15 @@ begin
             if ValidIndex(Column.Index) then
             begin
               if RootFolderNamespace.IsMyComputer then
-                Column.Width := VET_DEFAULT_DRIVES_COLUMNWIDTHS[Column.Index]
+                Column.Width := MulDiv(VET_DEFAULT_DRIVES_COLUMNWIDTHS[Column.Index], FCurrentPPI, Screen.DefaultPixelsPerInch)
               else
               if RootFolderNamespace.IsControlPanel then
-                Column.Width := VET_DEFAULT_CONTROLPANEL_COLUMNWIDTHS[Column.Index]
+                Column.Width := MulDiv(VET_DEFAULT_CONTROLPANEL_COLUMNWIDTHS[Column.Index], FCurrentPPI, Screen.DefaultPixelsPerInch)
               else
               if (RootFolderNamespace.IsNetworkNeighborhood or
                 RootFolderNamespace.IsNetworkNeighborhoodChild) and
                 ((RootFolderNamespace.DetailsSupportedColumns < 3)) then
-                Column.Width := VET_DEFAULT_NETWORK_COLUMNWIDTHS[Column.Index]
+                Column.Width := MulDiv(VET_DEFAULT_NETWORK_COLUMNWIDTHS[Column.Index], FCurrentPPI, Screen.DefaultPixelsPerInch)
               else begin
                 if (Column.Index = 0) then
                 begin
@@ -5755,12 +5783,12 @@ begin
                        end
                   end;
                   if Column.Width = 0 then
-                    Column.Width := VET_ColumnWidths[Column.Index]
+                    Column.Width := MulDiv(VET_ColumnWidths[Column.Index], FCurrentPPI, Screen.DefaultPixelsPerInch);
                 end else
-                  Column.Width := VET_ColumnWidths[Column.Index]
+                  Column.Width := MulDiv(VET_ColumnWidths[Column.Index], FCurrentPPI, Screen.DefaultPixelsPerInch);
               end
             end else
-              Column.Width := 120;
+              Column.Width := MulDiv(120, FCurrentPPI, Screen.DefaultPixelsPerInch);
             // Some Column Handers return this always and Explorer does not
             // respect that flag
             {$IFDEF ALWAYS_SHOW_ALL_COLUMNS}
@@ -6699,12 +6727,12 @@ var
 begin
   if Assigned(ContextMenuItem) then
   begin
-    if HiWord(Longword( TMessage( Msg).wParam)) and MF_POPUP <> 0 then
-      ChildMenu := GetSubMenu(LongWord( TMessage( Msg).lParam), LoWord(Longword( TMessage( Msg).wParam)))
+    if Msg.MenuFlag and MF_POPUP <> 0 then
+      ChildMenu := GetSubMenu(Msg.Menu, Msg.IDItem)
     else
       ChildMenu := 0;
-    DoContextMenuSelect((ContextMenuItem as TExplorerItem).Namespace, LoWord(Longword( TMessage( Msg).wParam)), ChildMenu,
-      HiWord(Longword( TMessage( Msg).wParam)) and MF_MOUSESELECT <> 0);
+    DoContextMenuSelect((ContextMenuItem as TExplorerItem).Namespace, Msg.IDItem,
+      ChildMenu, Msg.MenuFlag  and MF_MOUSESELECT <> 0);
   end
 end;
 
@@ -7139,6 +7167,7 @@ destructor TEasyThumbnailThreadRequest.Destroy;
 begin
   // FlushMessageCache will free the Request, the extracted data needs to be freed
   FreeAndNil(FInternalThumbInfo);
+  Tag := 0;
   inherited;
 end;
 
@@ -7160,11 +7189,11 @@ begin
       FInternalThumbInfo := SpCreateThumbInfoFromFile(NS, ThumbSize.X, ThumbSize.Y,
         UseSubsampling, UseShellExtraction, UseExifThumbnail, UseExifOrientation, BackgroundColor);
 
-      if Assigned(FInternalThumbInfo) then
-        Tag := Integer(FInternalThumbInfo);
+      Tag := NativeInt(FInternalThumbInfo);
     except
       try
         FreeAndNil(FInternalThumbInfo);
+        Tag := 0;
       except
       end
     end;
@@ -7202,32 +7231,43 @@ end;
 
 procedure LoadThumbInfoFromAlbum(LV: TCustomVirtualExplorerEasyListview; Album: TThumbAlbum);
 var
-  J, I, X: Integer;
+  J, I, Index: Integer;
   Items: TEasyItems;
+  ExplorerItem: TExplorerItem;
   NS: TNamespace;
-  AlbumT, T: TThumbInfo;
+  AlbumT, ThumbInfo: TThumbInfo;
 begin
   for J := 0 to LV.Groups.Count - 1 do
   begin
     Items := LV.Groups[J].Items;
     for I := 0 to Items.Count - 1 do
       if LV.ValidateNamespace(Items[I], NS) then
+      begin
         if NS.States * [nsThreadedImageLoaded, nsThreadedImageLoading, nsThreadedImageResizing] = [] then
-          if not Assigned(TExplorerItem(Items[I]).ThumbInfo) then begin
-            X := Album.IndexOf(NS.NameForParsing);
-            if Album.Read(X, AlbumT) then
-              if (AlbumT.FileDateTime = NS.LastWriteDateTime) then begin
-                T := TThumbInfo.Create;
+        begin
+          ExplorerItem := Items[I] as TExplorerItem;
+          if ExplorerItem.ThumbInfo = nil then
+          begin
+            Index := Album.IndexOf(NS.NameForParsing);
+            if Album.Read(Index, AlbumT) then
+            begin
+              if AlbumT.FileDateTime = NS.LastWriteDateTime then
+              begin
+                ThumbInfo := TThumbInfo.Create;
                 try
-                  T.Assign(AlbumT);
+                  ThumbInfo.Assign(AlbumT);
                   NS.States := (NS.States - [nsThreadedImageLoading]) + [nsThreadedImageLoaded];
-                  TExplorerItem(Items[I]).ThumbInfo := T;
-                  TExplorerItem(Items[I]).Invalidate(True);
+                  ExplorerItem.ThumbInfo := ThumbInfo;
+                  ExplorerItem.Invalidate(True);
                 except
-                  T.Free;
+                  ThumbInfo.Free;
+                  ExplorerItem.ThumbInfo := nil;
                 end;
               end;
+            end;
           end;
+        end;
+      end;
   end;
 end;
 
@@ -7235,8 +7275,9 @@ procedure SaveThumbInfoToAlbum(LV: TCustomVirtualExplorerEasyListview; Album: TT
 var
   J, I: Integer;
   Items: TEasyItems;
+  ExplorerItem: TExplorerItem;
   NS: TNamespace;
-  T: TThumbInfo;
+  ThumbInfo: TThumbInfo;
   Compressed: Boolean;
 begin
   Compressed := LV.ThumbsManager.StorageCompressed;
@@ -7247,18 +7288,21 @@ begin
     Items := LV.Groups[J].Items;
     for I := 0 to Items.Count - 1 do
       if LV.ValidateNamespace(Items[I], NS) then
-        if Assigned(TExplorerItem(Items[I]).ThumbInfo) then
+      begin
+        ExplorerItem := Items[I] as TExplorerItem;
+        if Assigned(ExplorerItem.ThumbInfo) then
         begin
-          T := TThumbInfo.Create;
+          ThumbInfo := TThumbInfo.Create;
           try
-            T.Assign(TExplorerItem(Items[I]).ThumbInfo);
-            T.Filename := NS.NameForParsing;
-            T.UseCompression := Compressed and (T.ImageWidth > 250) and (T.ImageHeight > 250);
-            Album.Add(T);
+            ThumbInfo.Assign(ExplorerItem.ThumbInfo);
+            ThumbInfo.Filename := NS.NameForParsing;
+            ThumbInfo.UseCompression := Compressed and (ThumbInfo.ImageWidth > 250) and (ThumbInfo.ImageHeight > 250);
           except
-            T.Free;
+            ThumbInfo.Free;
           end;
+          Album.Add(ThumbInfo);
         end;
+      end;
   end;
 end;
 
@@ -7928,13 +7972,38 @@ end;
 
 { TCustomVirtualDropStack}
 constructor TCustomVirtualDropStack.Create(AOwner: TComponent);
+var
+  lImageList: TCommonVirtualImageList;
 begin
   inherited Create(AOwner);
   HintItemCount := 16;
   StackDepth := 64;
   DragManager.Enabled := True;
-  ImagesSmall := SmallSysImages;
-  ImagesLarge := LargeSysImages;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := SmallSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesSmall := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := LargeSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesLarge := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := ExtraLargeSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesExLarge := lImageList;
+
+  lImageList := TCommonVirtualImageList.Create(Self);
+  lImageList.SourceImageList := JumboSysImages;
+  lImageList.SetSize(MulDiv(lImageList.Width, 96, Screen.PixelsPerInch),
+    MulDiv(lImageList.Height, 96, Screen.PixelsPerInch));
+  ImagesJumbo := lImageList;
+
   Selection.UseFocusRect := False;
   Selection.MultiSelect := True;
   Selection.EnableDragSelect := True;
@@ -8502,13 +8571,13 @@ begin
         begin
           Item.ThumbInfo.Assign(T);
           if LV.ValidateThumbnail(Item, DummyT) then
-            Result := ResizedResult
-        end
+            Result := ResizedResult;
+        end;
       finally
-        T.Free
-      end
-    end
-  end
+        T.Free;
+      end;
+    end;
+  end;
 end;
 
 procedure TVirtualExplorerEasyListviewHintWindow.Paint;

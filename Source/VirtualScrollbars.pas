@@ -232,6 +232,9 @@ type
 
 implementation
 
+uses
+  System.UITypes;
+
 { TCustomOwnerDrawScrollbar }
 
 function TCustomOwnerDrawScrollbar.CalcuatePositionByPixel(APixel: integer): integer;
@@ -352,9 +355,12 @@ end;
 procedure TCustomOwnerDrawScrollbar.DoPaintScrollBkgnd(DC: hDC);
 var
   Handled: Boolean;
-  PartType, PartState: Longword;
+  PartType, PartState: Integer;
   RUp, RDown: TRect;
 begin
+  if StyleServices(Self).Enabled then
+    Exit;
+
   Handled := False;
   if Assigned(OnScrollCustomPaint) then
     OnScrollCustomPaint(Self, pcBackground, psNormal, ScrollArea(saBackground),
@@ -372,14 +378,15 @@ begin
         DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, RDown, nil);
         PartState := SCRBS_NORMAL;
         DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, RUp, nil);
-      end else
+      end
+      else
       begin
         Windows.FillRect(DC, RUp, BkGndBrush.Handle);
         Canvas.Brush.Color := Colors.PageScrollHot;
         Windows.FillRect(DC, RDown, Canvas.Brush.Handle);
       end
-    end else
-    if ssPageUpPressed in State then
+    end
+    else if ssPageUpPressed in State then
     begin
       if Themed then
       begin
@@ -388,13 +395,15 @@ begin
         DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, RUp, nil);
         PartState := SCRBS_NORMAL;
         DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, RDown, nil);
-      end else
+      end
+      else
       begin
         Windows.FillRect(DC, RDown, BkGndBrush.Handle);
         Canvas.Brush.Color := Colors.PageScrollHot;
         Windows.FillRect(DC, RUp, Canvas.Brush.Handle);
       end
-    end else
+    end
+    else
     begin
       if Themed then
       begin
@@ -404,7 +413,8 @@ begin
 
         PartType := SBP_LOWERTRACKVERT;
         DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, RDown, nil);
-      end else
+      end
+      else
       begin
         Windows.FillRect(DC, RUp, BkGndBrush.Handle);
         Windows.FillRect(DC, RDown, BkGndBrush.Handle);
@@ -418,7 +428,12 @@ var
   Handled: Boolean;
   Flags: Longword;
   R, ContentR: TRect;
-  PartType, PartState: Longword;
+  PartType, PartState: Integer;
+  Color: TColor;
+  ColorNew: TColor;
+  LStyle: TCustomStyleServices;
+  Element: TThemedScrollBar;
+  Details: TThemedElementDetails;
 begin
   Handled := False;
   Flags := 0;
@@ -426,104 +441,167 @@ begin
     OnScrollCustomPaint(Self, pcScrollDown, psNormal, ScrollArea(saScrollDown), Canvas, Handled);
   if not Handled then
   begin
+    LStyle := StyleServices;
     if Cycle = pcScrollUp then
     begin
       R := ScrollArea(saScrollUp);
       if Themed then
       begin
-        PartType := SBP_ARROWBTN;
+        if LStyle.Enabled then
+        begin
+          Element := TThemedScrollBar.tsArrowBtnUpNormal;
+          if not Enabled then
+            Element := TThemedScrollBar.tsArrowBtnUpDisabled
+          else if ssUpPressed in State then
+            Element := TThemedScrollBar.tsArrowBtnUpPressed
+          else if ssHotUp in State then
+            Element := TThemedScrollBar.tsArrowBtnUpHot;
 
-        PartState := ABS_UPNORMAL;
-        if not Enabled then
-          PartState := ABS_UPDISABLED
+          Details := LStyle.GetElementDetails(Element);
+          LStyle.DrawElement(DC, Details, R, nil, CurrentPPI);
+        end
         else
-        if ssUpPressed in State then
-          PartState := ABS_UPPRESSED
-        else
-        if ssHotUp in State then
-          PartState := ABS_UPHOT;
+        begin
+          PartType := SBP_ARROWBTN;
 
-        DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
-      end else
+          PartState := ABS_UPNORMAL;
+          if not Enabled then
+            PartState := ABS_UPDISABLED
+          else if ssUpPressed in State then
+            PartState := ABS_UPPRESSED
+          else if ssHotUp in State then
+            PartState := ABS_UPHOT;
+
+          DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
+        end;
+      end
+      else
       begin
         Flags := DFCS_SCROLLUP;
 
         if not Enabled then
           Flags := DFCS_INACTIVE
-        else begin
+        else
+        begin
           if Flat then
             Flags := Flags or DFCS_FLAT;
           if ssUpPressed in State then
+          begin
             if Flat then
               Flags := Flags or DFCS_PUSHED
             else
               Flags := Flags or DFCS_FLAT
+          end;
         end;
         DrawFrameControl(DC, R, DFC_SCROLL, Flags)
-      end
-    end else
-    if Cycle = pcScrollDown then
+      end;
+    end
+    else if Cycle = pcScrollDown then
     begin
       R := ScrollArea(saScrollDown);
       if Themed then
       begin
-        PartType := SBP_ARROWBTN;
+        if LStyle.Enabled then
+        begin
+          Element := TThemedScrollBar.tsArrowBtnDownNormal;
+          if not Enabled then
+            Element := TThemedScrollBar.tsArrowBtnDownDisabled
+          else if ssDownPressed in State then
+            Element := TThemedScrollBar.tsArrowBtnDownPressed
+          else if ssHotDown in State then
+            Element := TThemedScrollBar.tsArrowBtnDownHot;
 
-        PartState := ABS_DOWNNORMAL;
-        if not Enabled then
-          PartState := ABS_DOWNDISABLED
+          Details := LStyle.GetElementDetails(Element);
+          LStyle.DrawElement(DC, Details, R, nil, CurrentPPI);
+        end
         else
-        if ssDownPressed in State then
-          PartState := ABS_DOWNPRESSED
-        else
-        if ssHotDown in State then
-          PartState := ABS_DOWNHOT;
+        begin
+          PartType := SBP_ARROWBTN;
 
-        DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
-      end else
+          PartState := ABS_DOWNNORMAL;
+          if not Enabled then
+            PartState := ABS_DOWNDISABLED
+          else if ssDownPressed in State then
+            PartState := ABS_DOWNPRESSED
+          else if ssHotDown in State then
+            PartState := ABS_DOWNHOT;
+
+          DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
+        end;
+      end
+      else
       begin
         Flags := DFCS_SCROLLDOWN;
 
         if not Enabled then
           Flags := DFCS_INACTIVE
-        else begin
+        else
+        begin
           if Flat then
             Flags := Flags or DFCS_FLAT;
           if ssDownPressed in State then
+          begin
             if Flat then
               Flags := Flags or DFCS_PUSHED
             else
-              Flags := Flags or DFCS_FLAT     
+              Flags := Flags or DFCS_FLAT
+          end;
         end;
         DrawFrameControl(DC, R, DFC_SCROLL, Flags)
-      end
-    end else
-    if Cycle = pcThumb then
+      end;
+    end
+    else if Cycle = pcThumb then
     begin
       R := ScrollArea(saThumb);
       if Themed then
       begin
         if R.Bottom - R.Top > 0 then
         begin
-          PartType := SBP_THUMBBTNVERT;
+          if LStyle.Enabled then
+          begin
+            Element := TThemedScrollBar.tsThumbBtnVertNormal;
+            if not Enabled then
+              Element := TThemedScrollBar.tsThumbBtnVertDisabled
+            else if ssDraggingThumb in State then
+              Element := TThemedScrollBar.tsThumbBtnVertPressed
+            else if ssHotThumb in State then
+              Element := TThemedScrollBar.tsThumbBtnVertHot;
+            Details := LStyle.GetElementDetails(Element);
 
-          PartState := SCRBS_NORMAL;
-          if not Enabled then
-            PartState := SCRBS_DISABLED
+            ContentR := ScrollArea(saThumbClient);
+            Color := BkGndBrush.Color;
+            if LStyle.IsSystemStyle then
+              ColorNew := LStyle.GetSystemColor(clBtnFace)
+            else
+              ColorNew := LStyle.GetSystemColor(clScrollBar);
+            BkGndBrush.Bitmap.Free;
+            BkGndBrush.Color := ColorNew;
+            FillRect(DC, ContentR, BkGndBrush.Handle);
+            BkGndBrush.Color := Color;
+
+            LStyle.DrawElement(DC, Details, R, nil, CurrentPPI);
+          end
           else
-          if ssDraggingThumb in State then
-            PartState := SCRBS_PRESSED
-          else
-          if ssHotThumb in State then
-            PartState := SCRBS_HOT;
+          begin
+            PartType := SBP_THUMBBTNVERT;
 
-          DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
-          GetThemeBackgroundContentRect(ThemeScrollbar, DC, PartType, PartState, R, @ContentR);
+            PartState := SCRBS_NORMAL;
+            if not Enabled then
+              PartState := SCRBS_DISABLED
+            else if ssDraggingThumb in State then
+              PartState := SCRBS_PRESSED
+            else if ssHotThumb in State then
+              PartState := SCRBS_HOT;
 
-          PartType := SBP_GRIPPERVERT;
-          DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, ContentR, nil);
+            DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, R, nil);
+            GetThemeBackgroundContentRect(ThemeScrollbar, DC, PartType, PartState, R, @ContentR);
+
+            PartType := SBP_GRIPPERVERT;
+            DrawThemeBackground(ThemeScrollbar, DC, PartType, PartState, ContentR, nil);
+          end;
         end
-      end else
+      end
+      else
       begin
         Canvas.Brush.Color := Colors.ThumbButton;
         FillRect(DC, R, Canvas.Brush.Handle);
@@ -531,15 +609,16 @@ begin
         begin
           Flags := EDGE_RAISED;
           DrawEdge(DC, R, Flags, BF_RECT)
-        end else
+        end
+        else
         begin
           Canvas.Brush.Color := clBtnShadow;
           Canvas.FrameRect(R);
         end;
         DrawEdge(DC, R, Flags, BF_RECT)
-      end
-    end
-  end
+      end;
+    end;
+  end;
 end;
 
 procedure TCustomOwnerDrawScrollbar.FreeThemes;
@@ -692,14 +771,17 @@ procedure TCustomOwnerDrawScrollbar.RebuildDefaultColors;
 var
   i, j: integer;
 begin
-  for i := 0 to 7 do
-    for j := 0 to 7 do
-      if Odd(i+j) then
-        BkGndBrush.Bitmap.Canvas.Pixels[i,j] := Colors.Background
-      else
-        BkGndBrush.Bitmap.Canvas.Pixels[i,j] := Colors.BackgroundBlend;
-  Invalidate;
-  Update
+  if Assigned(BkGndBrush.Bitmap) then
+  begin
+    for i := 0 to 7 do
+      for j := 0 to 7 do
+        if Odd(i + j) then
+          BkGndBrush.Bitmap.Canvas.Pixels[i, j] := Colors.Background
+        else
+          BkGndBrush.Bitmap.Canvas.Pixels[i, j] := Colors.BackgroundBlend;
+    Invalidate;
+    Update;
+  end;
 end;
 
 function TCustomOwnerDrawScrollbar.ScrollArea(Area: TScrollArea): TRect;
