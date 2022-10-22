@@ -274,7 +274,7 @@ type
     function LoadFromDataObject(const DataObject: ICommonDataObject): Boolean; virtual;
     procedure Notification(AComponent: TComponent; Operation: TOperation); override;
     procedure Paint; override;
-    procedure PaintButton(DC: HDC; ForDragImage: Boolean = False); virtual;
+    procedure PaintButton(ACanvas: TCanvas; ForDragImage: Boolean = False); virtual;
     function QueryContinueDrag(fEscapePressed: BOOL; grfKeyState: Longint): HResult; virtual; stdcall;
     function SaveToDataObject(const DataObject: ICommonDataObject): Boolean; virtual;
     procedure SetBoundsR(Rect: TRect); // Sets the bounds using a TRect
@@ -371,7 +371,7 @@ type
   TCaptionButton = class(TCustomWideSpeedButton)
   protected
     function CanResize(var NewWidth: Integer; var NewHeight: Integer): Boolean; override;
-    procedure PaintButton(DC: HDC; ForDragImage: Boolean = False); override;
+    procedure PaintButton(ACanvas: TCanvas; ForDragImage: Boolean = False); override;
     function CanAutoSize(var NewWidth, NewHeight: Integer): Boolean; override;
   public
     constructor Create(AOwner: TComponent); override;
@@ -450,6 +450,7 @@ type
     FScrollBtnSize: integer;                // Width of the scroll button
     FStates: TVirtualToolbarStates;         // Dynamic state of Toolbar
     FThemeToolbar: HTHEME;                  // Toolbar control theme handle
+    FCommonVirtualSysImageList: TCommonVirtualImageList;  // For scaling common sys images
 
     FButtonSpacing: integer;
     FButtonMargin: integer;
@@ -1264,10 +1265,10 @@ end;
 procedure TCustomWideSpeedButton.Paint;
 begin
   Canvas.Font.Assign(Font);
-  PaintButton(Canvas.Handle);
+  PaintButton(Canvas);
 end;
 
-procedure TCustomWideSpeedButton.PaintButton(DC: HDC; ForDragImage: Boolean = False);
+procedure TCustomWideSpeedButton.PaintButton(ACanvas: TCanvas; ForDragImage: Boolean = False);
 
   function GetCColor(Color1, Color2: TColor; total, weight2 :Integer): TColor;
   var //weight1: 0->Color1, total->Color2
@@ -1309,15 +1310,16 @@ var
   R, TempR: TRect;
   PartType, PartState: Longword;
   Brush: TBrush;
-
+  DC: HDC;
   Offset, GlyphPos: TPoint;
   TextRect, GlyphRect: TRect;
-  BiDiFlags, dwTextFlags2, rgbFg: Longword;
+  BiDiFlags, dwTextFlags2: Longword;
+  DrawingStyle: TDrawingStyle;
 // OldOrg: TPoint;
 begin
+  DC := ACanvas.Handle;
   if Visible then
   begin
-
   // set up some structures that are needed regardless if Theme drawing or not
     R := ClientRect;
 
@@ -1366,7 +1368,12 @@ begin
       end;
 
       if ForDragImage then
+      begin
         PartState := TS_HOT;
+        DrawingStyle := dsFocus;
+      end
+      else
+        DrawingStyle := dsTransparent;
 
       if not Enabled then
         PartState := TS_DISABLED;
@@ -1380,11 +1387,7 @@ begin
         // Create an image rectangle from the position and the imagelist size
         SetRect(GlyphRect, GlyphPos.x, GlyphPos.y, GlyphPos.x + ImageList.Width, GlyphPos.y + ImageList.Height);
 
-        // For some reason DrawThemeIcon won't work in the IDE
-        if csDesigning in ComponentState then
-          ImageList_DrawEx(ImageList.Handle, ImageIndex, DC, GlyphPos.X, GlyphPos.Y, 0, 0, CLR_NONE, CLR_NONE, ILD_TRANSPARENT)
-        else
-          DrawThemeIcon(ThemeToolbar, DC, PartType, PartState, GlyphRect, ImageList.Handle, ImageIndex);
+        ImageList.Draw(ACanvas, GlyphPos.X, GlyphPos.Y, ImageIndex, DrawingStyle, itImage, Enabled);
       end;
 
       if not Enabled then
@@ -1419,17 +1422,6 @@ begin
       if PaintState = psPressed then
         DrawEdge(DC, R, EDGE_SUNKEN, BF_RECT);
 
-      // Use the extra variable
-      dwTextFlags2 := ILD_TRANSPARENT;
-      rgbFg := CLR_NONE;
-
-      // If it is not enabled blend it with to backgound to make it weaker looking
-      if not Enabled then
-      begin
-        rgbFg := ColorToRGB(Color);
-        dwTextFlags2 :=  dwTextFlags2 or ILD_BLEND50;
-      end;
-
       //  We know that the Draw Edge may have used 2 pixels account for them in the rect
       InflateRect(R, -2, -2);
 
@@ -1438,7 +1430,7 @@ begin
 
       // Draw the Glyph and the Text
       if Assigned(ImageList) and (ImageIndex > -1) then
-        ImageList_DrawEx(ImageList.Handle, ImageIndex, DC, GlyphPos.X, GlyphPos.Y, 0, 0, CLR_NONE, rgbFg, dwTextFlags2);
+        ImageList.Draw(ACanvas, GlyphPos.X, GlyphPos.Y, ImageIndex, dsTransparent, itImage, Enabled);
       DrawButtonText(DC, Caption, TextRect, Enabled, BiDiFlags);
     end
   end;
@@ -1683,7 +1675,7 @@ begin
         DragImage := TBitmap.Create;
         DragImage.Width := Width;
         DragImage.Height := Height;
-        PaintButton(DragImage.Canvas.Handle, True);
+        PaintButton(DragImage.Canvas, True);
         DataObject.AssignDragImage(DragImage, Point(Message.XPos, Message.YPos), Color);
         FreeAndNil(DragImage);
 
@@ -1909,7 +1901,9 @@ begin
   FContent := [stcFolders, stcFiles, stcPrograms];
   FDropInsertMargin := 4;
   CoCreateInstance(CLSID_DragDropHelper, nil, CLSCTX_INPROC_SERVER, IID_IDropTargetHelper, FDropTargetHelper);
-  ControlState := ControlState - [csCreating]
+  ControlState := ControlState - [csCreating];
+  FCommonVirtualSysImageList := TCommonVirtualImageList.Create(Self);
+  FCommonVirtualSysImageList.SourceImageList := SmallSysImages;
 end;
 
 function TCustomVirtualToolbar.CreateButtonList: TVirtualButtonList;
@@ -2315,7 +2309,10 @@ begin
   // don't break the chain
   if Assigned(FOldFontChangeEvent) then
     FOldFontChangeEvent(Sender);
-  RebuildToolbar
+  for var I := 0 to ButtonList.Count - 1 do
+    ButtonList[i].Font.Assign(Font);
+
+  RebuildToolbar;
 end;
 
 procedure TCustomVirtualToolbar.FreeThemes;
@@ -2679,13 +2676,15 @@ begin
     if IsWinVista then
     begin
       SetWindowOrgEx(BackBits.Canvas.Handle, -CaptionButton.Left, -CaptionButton.Top, @Pt);
-      CaptionButton.PaintButton(BackBits.Canvas.Handle, False);
+      BackBits.Canvas.Font.Assign(Font);
+      CaptionButton.PaintButton(BackBits.Canvas, False);
       SetWindowOrgEx(BackBits.Canvas.Handle, Pt.X, Pt.Y, @Pt);
 
       for i := 0 to ButtonList.Count - 1 do
       begin
         SetWindowOrgEx(BackBits.Canvas.Handle, -ButtonList[i].Left, -ButtonList[i].Top, @Pt);
-        ButtonList[i].PaintButton(BackBits.Canvas.Handle, False);
+        BackBits.Canvas.Font.Assign(ButtonList[i].Font);
+        ButtonList[i].PaintButton(BackBits.Canvas, False);
         SetWindowOrgEx(BackBits.Canvas.Handle, Pt.X, Pt.Y, @Pt);
       end
     end;
@@ -2755,7 +2754,6 @@ procedure TCustomVirtualToolbar.SetOptions(const Value: TVirtualToolbarOptions);
 var
   OldOptions: TVirtualToolbarOptions;
   i: integer;
-  ImageList: TCustomImageList;
 
 begin
   if FOptions <> Value then
@@ -2812,11 +2810,11 @@ begin
     if BitChanged(Value, OldOptions, toLargeButtons) then
     begin
       if toLargeButtons in FOptions then
-        ImageList := LargeSysImages
+        FCommonVirtualSysImageList.SourceImageList := LargeSysImages
       else
-        ImageList := SmallSysImages;
+        FCommonVirtualSysImageList.SourceImageList := SmallSysImages;
       for i := 0 to ButtonList.Count - 1 do
-        ButtonList[i].ImageList := ImageList;
+        ButtonList[i].ImageList := FCommonVirtualSysImageList;
     end;
 
     RebuildToolbar
@@ -3317,6 +3315,8 @@ begin
   Result.Layout := Toolbar.ButtonLayout;
   Result.Margin := Toolbar.ButtonMargin;
   Result.Spacing := Toolbar.ButtonSpacing;
+  Result.Font := Toolbar.Font;
+  Result.FImageList := Toolbar.FCommonVirtualSysImageList;
   Result.OLEDraggable := toCustomizable in Toolbar.Options;
 
   case Index of
@@ -3496,7 +3496,7 @@ begin
   Result:= inherited CanResize(NewWidth, NewHeight);
 end;
 
-procedure TCaptionButton.PaintButton(DC: HDC; ForDragImage: Boolean = False);
+procedure TCaptionButton.PaintButton(ACanvas: TCanvas; ForDragImage: Boolean = False);
 
 // Overriden method to paint the static text "button"
 
@@ -3504,10 +3504,12 @@ var
   BiDiFlags: Longword;
   TextBounds, R: TRect;
   OldMode: integer;
+  DC: HDC;
   PartType, PartState, dwTextFlags1, dwTextFlags2: Longword;
 begin
   if Caption <> '' then
   begin
+    DC := ACanvas.Handle;
     BiDiFlags := DrawTextBiDiModeFlags(0);
 
     if ThemeAware and (bsThemesActive in State) then
@@ -3687,7 +3689,6 @@ begin
   inherited;
   Margin := 2;
   AutoSize := True;
-  FImageList := SmallSysImages;
 end;
 
 destructor TShellToolButton.Destroy;
@@ -4147,13 +4148,9 @@ procedure TCustomVirtualSpecialFolderToolbar.CreateButtons;
     SHGetSpecialFolderLocation(0, CSIDL_BUTTON, PIDL);
     if Assigned(PIDL) then
     begin
-      Button := TShellToolButton( ButtonList.AddButton);
+      Button := TShellToolButton(ButtonList.AddButton);
       Button.Namespace := TNamespace.Create(PIDL, nil);
       Button.CaptionOptions := ButtonCaptionOptions;
-      if toLargeButtons in FOptions then
-        Button.ImageList := LargeSysImages
-      else
-        Button.ImageList := SmallSysImages;
       DoAddButton(Button.Namespace, Allow);
       if not Allow then
         ButtonList.RemoveButton(Button);
