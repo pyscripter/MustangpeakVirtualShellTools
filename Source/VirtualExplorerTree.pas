@@ -1169,7 +1169,7 @@ type
 {*******************************************************************************}
   PNodeData = ^TNodeData;
   TNodeData = packed record
-    ReservedForTCustomVirtualStringTree: Int32;
+    ReservedForTCustomVirtualStringTree: Cardinal;
     Namespace: TNamespace;
     ColumnManager: TColumnManager;
   end;
@@ -3608,7 +3608,8 @@ var
   CF: VirtualTrees.TClipboardFormats;
 begin
   inherited;
-  AllocateInternalDataArea(SizeOf(TNodeData));
+  // The new size is added to the inherited one which is SizeOf(Cardinal)
+  AllocateInternalDataArea(SizeOf(TNodeData) - SizeOf(Cardinal));
   InitializeCriticalSection(FEnumLock);
   ContextMenuManager := TContextMenuManager.Create(Self);
   ShellNotifyManager.RegisterExplorerWnd(Self);
@@ -12103,11 +12104,6 @@ begin
           R := BackGroundRect(crImage);
           PopupExplorerDropDown.FPopupExplorerTree.FScaledSmallSysImages.Draw(
             ACanvas, R.Left, R.Top, ImageIndex, Enabled);
-
-//          if Enabled then
-//            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_NORMAL, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex)
-//          else
-//            DrawThemeIcon(ThemeEdit, PaintDC, EP_EDITTEXT, ETS_DISABLED, R, SmallSysImagesForPPI(FCurrentPPI).Handle, ImageIndex);
         end;
       end
       else
