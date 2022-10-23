@@ -23,6 +23,15 @@ unit VirtualBreadCrumbBar;
 // customization of internal strings.
 //
 //----------------------------------------------------------------------------
+//
+//  Incomplete.  What is still missing
+//  - Contensed painting and scrolling if it does not fit (complex task)
+//  - Vcl styling (should be easy)
+//
+//----------------------------------------------------------------------------
+
+
+
 
 interface
 
@@ -212,6 +221,7 @@ type
     FPathImage: TBreadCrumbBarObject;
     FState: TVirtualBreadCrumbBarStates;
     FTrackingMenu: TPopupMenu;             // Set/Cleared by the Crumb object when it opens a menu
+    FImages: TCommonVirtualImageList;
     function GetPath: string;
     function GetPIDL: PItemIDList;
     procedure SetActive(const Value: Boolean);
@@ -298,6 +308,9 @@ type
   
 implementation
 
+Uses
+  Vcl.Forms;
+
 { TCustomVirtualBreadCrumbBar}
 constructor TCustomVirtualBreadCrumbBar.Create(AOwner: TComponent);
 begin
@@ -312,7 +325,11 @@ begin
   Crumbs := TBreadCrumbBarPathObjects.Create;
   FPaintOptions := TVirtualBreadCrumbBarPaintOptions.Create;
   FOptions := [vbcoEditable, vbcoDropDownTree, vbcoDropDownAutoComplete, vbcoDropDownMenus, vbcoDropDownExpandableMenus];
-  FFileObjects := [foFolders]
+  FFileObjects := [foFolders];
+  FImages := TCommonVirtualImageList.Create(Self);
+  FImages.SourceImageList := SmallSysImages;
+  FImages.SetSize(MulDiv(SmallSysImages.Width, 96, Screen.PixelsPerInch),
+    MulDiv(SmallSysImages.Height, 96, Screen.PixelsPerInch));
 end;
 
 destructor TCustomVirtualBreadCrumbBar.Destroy;
@@ -370,7 +387,7 @@ var
 begin
   if HandleAllocated then
   begin
-    PathImage.DisplayRect := Rect(0, 0, SmallSysImages.Width + 4, ClientHeight);
+    PathImage.DisplayRect := Rect(0, 0, FImages.Width + 4, ClientHeight);
     R := PathImage.DisplayRect;
     R.Left := R.Right;
     ACanvas := TCanvas.Create;
@@ -499,16 +516,11 @@ begin
   ACanvas.FillRect(ClipRect);
   if Active and Assigned(Namespace) then
   begin
-    ImageList_DrawEx(SmallSysImages.Handle,
-        Namespace.GetIconIndex(False, icSmall),
-        ACanvas.Handle,
-        (RectWidth(PathImage.DisplayRect) - SmallSysImages.Width) div 2,
-        (RectHeight(PathImage.DisplayRect) - SmallSysImages.Height) div 2,
-        0,
-        0,
-        CLR_NONE,
-        CLR_NONE,
-        ILD_TRANSPARENT);
+    FImages.Draw(ACanvas,
+      (RectWidth(PathImage.DisplayRect) - FImages.Width) div 2,
+      (RectHeight(PathImage.DisplayRect) - FImages.Height) div 2,
+      Namespace.GetIconIndex(False, icSmall),
+      dsTransparent, itImage, Enabled);
 
     ACanvas.Brush.Color := clNone;
     ACanvas.Brush.Style := bsClear;
@@ -607,7 +619,7 @@ begin
           Rebuild;
         end
       end;
-      PIDLMgr.FreePIDL(PIDL)
+      PIDLMgr.FreePIDL(PIDL);
     end
   end
 end;
@@ -628,7 +640,7 @@ begin
           OldNS := FNamespace;
           FNamespace := NS;
           FreeAndNil(OldNS);
-          Rebuild
+          Rebuild;
         end
       end
     end else
@@ -748,7 +760,6 @@ end;
 
 procedure TBreadCrumbBarObject.Click(Pt: TPoint);
 begin
-  MessageBox(0, 'Clicked me', '', MB_OK);
 end;
 
 procedure TBreadCrumbBarObject.Invalidate(Immediate: Boolean);
@@ -825,20 +836,20 @@ var
   MenuItem: TMenuItem;
   NS: TNamespace;
 begin
-  MenuItem := TMenuItem.Create(TPopupMenu( Data));
+  MenuItem := TMenuItem.Create(TPopupMenu(Data));
   NS := TNamespace.Create(APIDL, AParent); // Let the NS free the PIDL
   MenuItem.Caption := NS.NameNormal;
   MenuItem.OnClick := OnPopupMenuClick;
-  if Assigned(TPopupMenu( Data).Images) then
+  MenuItem.Tag := NativeInt(NS);
+  if Assigned(TPopupMenu(Data).Images) then
     MenuItem.ImageIndex := NS.GetIconIndex(False, icSmall);
-  TPopupMenu( Data).Items.Add(MenuItem);
-  NS.Free;
-  Result := True
+  TPopupMenu(Data).Items.Add(MenuItem);
+  Result := True;
 end;
 
 function TBreadCrumbBarPathObject.PtInDropDownButton(Pt: TPoint): Boolean;
 begin
-  Result := PtInRect(DropDownArrowRect, Pt)
+  Result := PtInRect(DropDownArrowRect, Pt);
 end;
 
 procedure TBreadCrumbBarPathObject.Click(Pt: TPoint);
@@ -851,29 +862,37 @@ begin
     Menu := TPopupMenu.Create(nil);
     try
       if vbcoMenuIcons in Owner.Options then
-        Menu.Images := SmallSysImages;
+        Menu.Images := FOwner.FImages;
       Namespace.EnumerateFolderEx(0, Owner.FileObjects, EnumFunc, Menu);
       OriginPt := Point(DisplayRect.Left, DisplayRect.Bottom);
       OriginPt := Owner.ClientToScreen(OriginPt);
       MenuShown := True;
       Invalidate(True);
-      Include( Owner.FState, vbcsMenuTracking); // Enter the special state where the menus stay open as you move from crumb to crumb
+      Include(Owner.FState, vbcsMenuTracking); // Enter the special state where the menus stay open as you move from crumb to crumb
       Owner.TrackingMenu := Menu;
       Menu.Popup(OriginPt.x, OriginPt.y);
       if Owner.TrackingMenu = Menu then
         Owner.TrackingMenu := nil;
       MenuShown := False;
     finally
-      FreeAndNil(Menu);
+      // OnClick will not be called if we free here
+      TThread.ForceQueue(nil, procedure
+        var
+          MenuItem: TMenuItem;
+        begin
+          for MenuItem in Menu.Items do
+            TNameSpace(MenuItem.Tag).Free;
+          FreeAndNil(Menu);
+        end, 1000);
       Down := False;
     end
   end else
-    inherited Click(Pt);
+    FOwner.SetPIDL(PIDLMgr.CopyPIDL(Namespace.AbsolutePIDL));
 end;
 
 procedure TBreadCrumbBarPathObject.OnPopupMenuClick(Sender: TObject);
 begin
-
+  FOwner.SetPIDL(PIDLMgr.CopyPIDL(TNamespace((Sender as TMenuItem).Tag).AbsolutePIDL));
 end;
 
 procedure TBreadCrumbBarPathObject.Paint(ACanvas: TCanvas);

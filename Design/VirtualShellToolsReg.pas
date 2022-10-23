@@ -39,8 +39,8 @@ uses
   VirtualShellAutoComplete, VirtualSendToMenu, VirtualRedirector,
   VirtualExplorerEasyListview, VirtualFileSearch,
   VirtualExplorerEasyListModeview,
-  {VirtualBreadCrumbBar}
-    DesignIntf, DesignEditors;
+  VirtualBreadCrumbBar,
+  DesignIntf, DesignEditors;
 
 procedure Register;
 
@@ -71,8 +71,8 @@ begin
   // Assorted ShellTools Components
   RegisterComponents('VirtualShellTools', [TVirtualShellLink, TVirtualShellNewMenu,
     TVirtualShellHistory, TVirtualShellMRU, TVirtualShellAutoComplete, TVirtualSendToMenu,
-    TVirtualFileSearch, TVirtualShellMultiParentContextMenu, TVirtualShellBackgroundContextMenu{,
-    TVirtualBreadCrumbBar}]);
+    TVirtualFileSearch, TVirtualShellMultiParentContextMenu, TVirtualShellBackgroundContextMenu,
+    TVirtualBreadCrumbBar]);
 
   // Applets, Wizards, and Shell Dialogs Components
   RegisterComponents('VirtualShellTools', [TVirtualRunFileDialog]);
