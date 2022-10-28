@@ -1544,7 +1544,7 @@ type
     property LastDragEffect: integer read FLastDragEffect write FLastDragEffect;
     property LastDropTargetNode: PVirtualNode read FLastDropTargetNode write FLastDropTargetNode;
     property Malloc: IMalloc read FMalloc write FMalloc;
-    property NodeDataSize: Integer read GetNodeDataSize write SetNodeDataSize default -1;
+    property NodeDataSize: Integer read GetNodeDataSize write SetNodeDataSize default 0;
     property OnClipboardCopy: TVETOnClipboardCopy read FOnClipboardCopy write FOnClipboardCopy;
     property OnClipboardCut: TVETOnClipboardCut read FOnClipboardCut write FOnClipboardCut;
     property OnClipboardPaste: TVETOnClipboardPaste read FOnClipboardPaste write FOnClipboardPaste;
@@ -3610,6 +3610,9 @@ begin
   inherited;
   // The new size is added to the inherited one which is SizeOf(Cardinal)
   AllocateInternalDataArea(SizeOf(TNodeData) - SizeOf(Cardinal));
+  // Saves space and prevents errors at design time with Active = True
+  // See https://github.com/JAM-Software/Virtual-TreeView/issues/1136
+  inherited NodeDataSize := 0;
   InitializeCriticalSection(FEnumLock);
   ContextMenuManager := TContextMenuManager.Create(Self);
   ShellNotifyManager.RegisterExplorerWnd(Self);
