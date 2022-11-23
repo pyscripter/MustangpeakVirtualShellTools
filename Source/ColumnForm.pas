@@ -28,7 +28,7 @@ interface
 
 uses
   Windows, SysUtils, Classes, Controls, Forms,
-  StdCtrls, ExtCtrls, VirtualTrees,
+  StdCtrls, ExtCtrls, VirtualTrees.BaseTree, VirtualTrees,
   ActiveX;
 
 type

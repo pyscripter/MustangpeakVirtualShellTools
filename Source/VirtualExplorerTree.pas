@@ -134,6 +134,7 @@ uses
   SpTBXEditors,
   {$ENDIF SpTBX}
   Registry,
+  VirtualTrees.BaseTree,
   VirtualTrees.DataObject,
   VirtualTrees.EditLink,
   VirtualTrees.Header,
@@ -3605,7 +3606,7 @@ end;
 
 constructor TCustomVirtualExplorerTree.Create(AOwner: TComponent);
 var
-  CF: VirtualTrees.TClipboardFormats;
+  CF: VirtualTrees.BaseTree.TClipboardFormats;
 begin
   inherited;
   // The new size is added to the inherited one which is SizeOf(Cardinal)
@@ -3651,7 +3652,7 @@ begin
 
   { Remove any weird clipboard formats.  The IDataObject will handle that.      }
   { Still need the virtual tree internal formats though.                        }
-  CF := VirtualTrees.TClipboardFormats.Create(Self);
+  CF := VirtualTrees.BaseTree.TClipboardFormats.Create(Self);
   CF.Add(CFSTR_VIRTUALTREE);
   CF.Add(CFSTR_VTREFERENCE);
   ClipboardFormats := CF;
@@ -9281,7 +9282,7 @@ end;
 function TVETDataObject.EnumFormatEtc(Direction: Integer;
   out EnumFormatEtc: IEnumFormatEtc): HResult;
 var
-  Temp: VirtualTrees.TFormatEtcArray;
+  Temp: VirtualTrees.BaseTree.TFormatEtcArray;
   TempEnumFormatEtc: IEnumFormatEtc;
   pceltFetched: Longint;
   elt: TeltArray;
