@@ -33,7 +33,7 @@ interface
 
 uses
   Windows, SysUtils, Classes, Controls, Forms,
-  StdCtrls, ExtCtrls, VirtualTrees, ActiveX,
+  StdCtrls, ExtCtrls, VirtualTrees.BaseTree, VirtualTrees, ActiveX,
   SpTBXDkPanels, SpTBXControls, SpTBXEditors, SpTBXItem;
 
 type
