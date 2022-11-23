@@ -76,6 +76,7 @@ uses
   {$IFDEF GX_DEBUG}
   DbugIntf,
   {$ENDIF}
+  VirtualTrees.BaseTree,
   VirtualTrees,
   MPCommonUtilities,
   MPShellTypes,

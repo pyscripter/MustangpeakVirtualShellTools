@@ -311,8 +311,7 @@ uses
   {$IFDEF USE_TOOLBAR_TB2K}
   TypInfo,
   {$ENDIF}
-  Forms,
-  VirtualTrees;
+  Forms;
 
 {$IFDEF USE_TOOLBAR_TB2K}
 procedure SetTBItemCaption(Item: TTBCustomItem; Caption: string);

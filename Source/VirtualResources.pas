@@ -31,7 +31,6 @@ interface
 uses
   // < FR added 11-28-05 >
   // To allow customization of check images at runtime in the column dialog
-  VirtualTrees,
   Forms,
   StdCtrls,
   Classes,
