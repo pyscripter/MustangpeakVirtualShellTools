@@ -129,6 +129,7 @@ uses
   ImgList,
   StdCtrls,
   ExtCtrls,
+  ShellAnimations,
   {$IFDEF SpTBX}
   SpTBXSkins,
   SpTBXEditors,
@@ -5315,6 +5316,7 @@ end;
 procedure TCustomVirtualExplorerTree.EnumThreadFinished;
 begin
   Cursor := crDefault;
+  EnumThreadTimer(False);
   if Assigned(OnEnumFinished) then OnEnumFinished(Self);
 end;
 
@@ -7116,10 +7118,10 @@ begin
           NewNodeData := InternalData(RootNode);
           FreeAndNil(NewNodeData.Namespace);
         end;
-          { TempRootNamespace was created in the property setters for the custom  }
-          { path and pidl selections.                                             }
-          FRootFolderNamespace := TempRootNamespace;
-          TempRootNamespace := nil;
+        { TempRootNamespace was created in the property setters for the custom  }
+        { path and pidl selections.                                             }
+        FRootFolderNamespace := TempRootNamespace;
+        TempRootNamespace := nil;
       finally
         EndUpdate;
         if Assigned(FRootFolderNamespace) then
