@@ -28,7 +28,7 @@ MustangpeakVirtualShellTools package names have the following form:
 - VirtualShellToolsC.bpl        (C++Builder Runtime for the VCL)
 - VirtualShellToolsCD.bpl       (C++Builder Runtime for the VCL)
 
-*RAD STUDIO Berlin or later supported.*
+*RAD STUDIO Rio or later supported.*
 
 ## Installation
 
@@ -37,7 +37,7 @@ steps:
 
   1. Install first [MustangpeakCommonLib](https://github.com/pyscripter/MustangpeakCommonLib),
     [MustangpeakEasyListView](https://github.com/pyscripter/MustangpeakEasyListView) and
-    [Virtual-TreeView](https://github.com/Virtual-TreeView/Virtual-TreeView).
+    [Virtual-TreeView](https://github.com/Virtual-TreeView/Virtual-TreeView). Note that you need to install the Virtual-Treview version from the repo and not the GetIt version.
 
   2. Clone or download and unzip the Github repository into a directory (e.g., D:\MustangpeakVirtualShellTools). 
 
