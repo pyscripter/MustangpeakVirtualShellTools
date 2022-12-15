@@ -3794,9 +3794,11 @@ begin
   // more like Explorer
   if (Node <> nil) and (Node = FocusedNode) then
   begin
-    //Focus the next sibling or the parent
+    //Focus the next/previous sibling or the parent
     if Node.NextSibling <> nil then
       FocusedNode := Node.NextSibling
+    else if Node.PrevSibling <> nil then
+      FocusedNode := Node.PrevSibling
     else
       FocusedNode := Node.Parent;
     //Select the focused node
@@ -3843,7 +3845,7 @@ end;
 
 procedure TCustomVirtualExplorerTree.DeleteSelectedNodes(ShiftKeyState: TExecuteVerbShift = evsCurrent);
 begin
-  SelectedFilesDelete(ShiftKeyState)
+  SelectedFilesDelete(ShiftKeyState);
 end;
 
 destructor TCustomVirtualExplorerTree.Destroy;
@@ -8538,7 +8540,7 @@ end;
 
 function TCustomVirtualExplorerTree.IsAnyEditing: Boolean;
 begin
-  Result := IsEditing
+  Result := IsEditing;
 end;
 
 procedure TCustomVirtualExplorerTree.WMMouseMove(var Message: TWMMouseMove);

@@ -10,7 +10,8 @@ uses
   VirtualShellToolBar, VirtualTrees, MPShellUtilities, ActiveX,
   MPCommonUtilities,
   MPShellTypes, ShlObj, VirtualShellNewMenu, ToolWin,
-  VirtualShellHistory, VirtualShellNotifier, ImgList;
+  VirtualShellHistory, VirtualShellNotifier, ImgList,  VirtualTrees.Types,
+  VirtualTrees.BaseAncestorVCL, VirtualTrees.BaseTree, VirtualTrees.AncestorVCL;
 
 type
   TForm1 = class(TForm)
@@ -67,7 +68,7 @@ type
     { Private declarations }
   public
     { Public declarations }
-    Sorting: VirtualTrees.TSortDirection;
+    Sorting: VirtualTrees.Types.TSortDirection;
     SortingColumn: Integer;
   end;
 

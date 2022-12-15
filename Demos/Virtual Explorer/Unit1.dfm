@@ -11,11 +11,9 @@ object Form1: TForm1
   Font.Name = 'Tahoma'
   Font.Style = []
   Menu = MainMenu1
-  OldCreateOrder = False
   OnClose = FormClose
   OnCreate = FormCreate
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 14
   object Splitter1: TSplitter
     Left = 0
@@ -411,7 +409,6 @@ object Form1: TForm1
     Header.AutoSizeIndex = -1
     Header.Height = 18
     Header.Options = [hoColumnResize, hoDrag, hoHotTrack, hoShowSortGlyphs, hoVisible]
-    HintAnimation = hatNone
     HintMode = hmHint
     IncrementalSearch = isAll
     Indent = 0
