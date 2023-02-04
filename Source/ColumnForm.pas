@@ -28,8 +28,8 @@ interface
 
 uses
   Windows, SysUtils, Classes, Controls, Forms,
-  StdCtrls, ExtCtrls, VirtualTrees.BaseTree, VirtualTrees,
-  ActiveX;
+  StdCtrls, ExtCtrls, VirtualTrees.Types, VirtualTrees.BaseTree, VirtualTrees,
+  ActiveX, VirtualTrees.BaseAncestorVCL, VirtualTrees.AncestorVCL;
 
 type
   TVETUpdate = procedure(Sender: TObject) of object;
