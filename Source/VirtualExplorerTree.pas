@@ -1613,7 +1613,7 @@ type
     procedure DeleteNode(Node: PVirtualNode; Reindex: Boolean = True); reintroduce;
     procedure DeleteSelectedNodes(ShiftKeyState: TExecuteVerbShift = evsCurrent); reintroduce;
     function DoCancelEdit: Boolean; override;
-    function DoEndEdit: Boolean; override;
+    function DoEndEdit(pCancel: Boolean = False): Boolean; override;
     function FindDesktopFolderByName(AName: string; var Namespace: TNamespace): Boolean;
     function FindNode(APath: string): PVirtualNode;
     function FindNodeByPIDL(APIDL: PItemIDList): PVirtualNode;
@@ -4192,40 +4192,43 @@ begin
   Update
 end;
 
-function TCustomVirtualExplorerTree.DoEndEdit: Boolean;
+function TCustomVirtualExplorerTree.DoEndEdit(pCancel: Boolean = False): Boolean;
 var
   Msg: TMsg;
   NS: TNamespace;
   RePostQuitCode: Integer;
   RePostQuit: Boolean;
 begin
-  // Refresh the cached information to reflect the edited name
-  ValidateNamespace(FocusedNode, NS);
-  if Assigned(NS) then
-    NS.InvalidateNamespace;
-  // This allows Windows to send its change notifications and for VET to receive
-  // them.  Since we are still in edit mode the WM_SHELLNOTIFY will not update
-  // the listview so the newly created node will stay on the bottom and not
-  // get sorted.
-  Sleep(AFTEREDITDELAY);
-
-  RePostQuit := False;
-  RePostQuitCode := 0;
-  // Pluck out any notification messages
-  while PeekMessage(Msg, Handle, WM_SHELLNOTIFY, WM_SHELLNOTIFY, PM_REMOVE) do
+  if not pCancel then
   begin
-    if Msg.Message = WM_QUIT then
+    // Refresh the cached information to reflect the edited name
+    ValidateNamespace(FocusedNode, NS);
+    if Assigned(NS) then
+      NS.InvalidateNamespace;
+    // This allows Windows to send its change notifications and for VET to receive
+    // them.  Since we are still in edit mode the WM_SHELLNOTIFY will not update
+    // the listview so the newly created node will stay on the bottom and not
+    // get sorted.
+    Sleep(AFTEREDITDELAY);
+
+    RePostQuit := False;
+    RePostQuitCode := 0;
+    // Pluck out any notification messages
+    while PeekMessage(Msg, Handle, WM_SHELLNOTIFY, WM_SHELLNOTIFY, PM_REMOVE) do
     begin
-      RePostQuit := True;
-      RePostQuitCode := Msg.WParam
-    end else
-    begin
-      // Still dispatch them eventhough the handler will ignore them
-      TranslateMessage(Msg);
-      DispatchMessage(Msg)
+      if Msg.Message = WM_QUIT then
+      begin
+        RePostQuit := True;
+        RePostQuitCode := Msg.WParam
+      end else
+      begin
+        // Still dispatch them eventhough the handler will ignore them
+        TranslateMessage(Msg);
+        DispatchMessage(Msg)
+      end;
+      if RePostQuit then
+        PostQuitMessage(RePostQuitCode)
     end;
-    if RePostQuit then
-      PostQuitMessage(RePostQuitCode)
   end;
   Result := inherited DoEndEdit;
 end;
