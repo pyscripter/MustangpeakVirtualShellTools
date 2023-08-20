@@ -1117,7 +1117,7 @@ type
 
   protected
     property AutoOptions: TVTAutoOptions read GetAutoOptions write SetAutoOptions
-      default DefaultAutoOptions;
+      default DefaultAutoOptions - [toAutoSort];
     property SelectionOptions: TVTSelectionOptions read GetSelectionOptions
       write SetSelectionOptions default DefaultSelectionOptions;
     property VETFolderOptions: TVETFolderOptions read FVETFolderOptions
@@ -3615,6 +3615,7 @@ begin
   // Saves space and prevents errors at design time with Active = True
   // See https://github.com/JAM-Software/Virtual-TreeView/issues/1136
   inherited NodeDataSize := 0;
+  TreeOptions.AutoOptions := TreeOptions.AutoOptions - [toAutoSort];
   InitializeCriticalSection(FEnumLock);
   ContextMenuManager := TContextMenuManager.Create(Self);
   ShellNotifyManager.RegisterExplorerWnd(Self);
