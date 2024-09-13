@@ -773,6 +773,7 @@ type
     property Stored: Boolean read FStored write FStored;
   end;
 
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY OFF}{$ENDIF}
   TNodeStorageList = class(TStreamableList)
   protected
     function GetItems(Index: integer): TNodeStorage;
@@ -786,6 +787,7 @@ type
 
     property Items[Index: integer]: TNodeStorage read GetItems write SetItems; default;
   end;
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY ON}{$ENDIF}
 
   TLeafNode = class(TStreamableClass)
   private
@@ -801,6 +803,7 @@ type
     property PIDL: PItemIDList read FPIDL write FPIDL;
   end;
 
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY OFF}{$ENDIF}
   TLeafNodeList = class(TStreamableList)
   private
     FShareNodes: Boolean;
@@ -815,6 +818,7 @@ type
     property ShareNodes: Boolean read FShareNodes write FShareNodes;
     property Items[Index: Integer]: TLeafNode read GetItems write SetItems; default;
   end;
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY ON}{$ENDIF}
 
   { Stores a VETs state so it may be recreated.  It stores the PIDLs associated }
   { with the the tree that can be used to recreate the tree.  These include the }
@@ -881,6 +885,7 @@ type
   end;
 
   { Implements a TList that can handle TView Objects.                           }
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY OFF}{$ENDIF}
   TViewList = class(TStreamableList)
   private
     function GetItems(Index: Integer): TView;
@@ -894,6 +899,8 @@ type
 
     property Items[Index: Integer]: TView read GetItems write SetItems;
   end;
+  {$IF (CompilerVersion > 36) or Declared(RTLVersion122)}{$WARN OVERLOADING_ARRAY_PROPERTY ON}{$ENDIF}
+
 
   { Implements a Manager that knows how to handle a TViewList.  It is the       }
   { interface from the program to the collection of Views it stores and         }
