@@ -7528,7 +7528,6 @@ end;
 procedure TCustomVirtualExplorerTree.WMCommonThreadCallback(var Msg: TWMThreadRequest);
 var
   NS: TNamespace;
-  IsDragging: Boolean;
   MarkRequest: TExpandMarkThreadRequest;
   IconRequest: TShellIconThreadRequest;
 begin
@@ -7540,11 +7539,7 @@ begin
           if ValidateNamespace(IconRequest.Item, NS) then
           begin
             NS.SetIconIndexByThread(IconRequest.ImageIndex, IconRequest.OverlayIndex, True);
-            IsDragging := Dragging;
             InvalidateNode(IconRequest.Item);
-            { The window has changed make sure drag image knows about it.}
-            if IsDragging then
-              UpdateWindowAndDragImage(Self, GetClientRect, False, True);
           end
         end;
       TID_EXPANDMARK:
