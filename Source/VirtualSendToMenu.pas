@@ -90,7 +90,7 @@ type
 implementation
 
 uses
-  TypInfo, System.Types;
+  TypInfo, System.Types, System.Generics.Defaults;
 
 {$IFDEF USE_TOOLBAR_TB2K}
 procedure SetTBItemCaption(Item: TTBCustomItem; Caption: string);
@@ -107,10 +107,10 @@ begin
 end;
 {$ENDIF}
 
-function SendToMenuSort(Item1, Item2: Pointer): Integer;
+function SendToMenuSort(const Item1, Item2: TNameSpace): Integer;
 begin
   if Assigned(Item1) and Assigned(Item2) then
-    Result := TNamespace(Item2).ComparePIDL(TNamespace(Item1).RelativePIDL, False)
+    Result := Item2.ComparePIDL(Item1.RelativePIDL, False)
   else
     Result := 0
 end;
@@ -202,7 +202,7 @@ procedure TVirtualSendToMenu.Populate(MenuItem: TMenuItem);
     try
       // No messages
       NS.EnumerateFolder(0, False, NonFolders, False, EnumSendToCallback, L);
-      L.Sort(SendToMenuSort);
+      L.Sort(TComparer<TNameSpace>.Construct(SendToMenuSort));
       for I := 0 to L.Count - 1 do begin
         SendToIndex := SendToItems.Add(L[I]);
         M := TMenuItem.Create(Self);
