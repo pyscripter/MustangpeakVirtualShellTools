@@ -178,33 +178,33 @@ type
     FToolbar: TCustomVirtualToolbar;  // Toolbar associated with this list
     FUpdateCount: integer;       // Used to stop any screen updates until EndUpdate is call and FUpdateCount goes to 0
 
-    function GetItems(Index: integer): TCustomWideSpeedButton;
-    procedure SetItems(Index: integer; const Value: TCustomWideSpeedButton);
+    function GetItems(Index: TListSize): TCustomWideSpeedButton;
+    procedure SetItems(Index: TListSize; const Value: TCustomWideSpeedButton);
   protected
     function CreateToolButton: TCustomWideSpeedButton; virtual;
   public
-    function AddButton(Index: integer = -1): TCustomWideSpeedButton; virtual;
+    function AddButton(Index: TListSize = -1): TCustomWideSpeedButton; virtual;
     procedure RemoveButton(Button: TCustomWideSpeedButton);
     procedure BeginUpdate;
     procedure EndUpdate;
 
     procedure Clear; override;
 
-    property Items[Index: integer]: TCustomWideSpeedButton read GetItems write SetItems; default;
+    property Items[Index: TListSize]: TCustomWideSpeedButton read GetItems write SetItems; default;
     property Toolbar: TCustomVirtualToolbar read FToolbar write FToolbar;
   end;
 
   TVirtualShellButtonList = class(TVirtualButtonList)
   private
-    function GetItems(Index: integer): TShellToolButton;
-    procedure SetItems(Index: integer; const Value: TShellToolButton);
+    function GetItems(Index: TListSize): TShellToolButton;
+    procedure SetItems(Index: TListSize; const Value: TShellToolButton);
   protected
     function CreateToolButton: TCustomWideSpeedButton; override;
 
   public
-    function AddButton(Index: integer = -1): TCustomWideSpeedButton; override;
+    function AddButton(Index: TListSize = -1): TCustomWideSpeedButton; override;
 
-    property Items[Index: integer]: TShellToolButton read GetItems write SetItems; default;
+    property Items[Index: TListSize]: TShellToolButton read GetItems write SetItems; default;
   end;
 
   // Basic Toolbutton that can be created an placed on a TVirtualToolbar
@@ -3299,7 +3299,7 @@ end;
 
 { TVirtualButtonList }
 
-function TVirtualButtonList.AddButton(Index: integer = -1): TCustomWideSpeedButton;
+function TVirtualButtonList.AddButton(Index: TListSize = -1): TCustomWideSpeedButton;
 
 // Creates a new Toobar Button and adds it to the list based on the Index parameter
 // If -1 then the button is added to the end of the list.
@@ -3386,7 +3386,7 @@ begin
     Toolbar.RebuildToolbar
 end;
 
-function TVirtualButtonList.GetItems(Index: integer): TCustomWideSpeedButton;
+function TVirtualButtonList.GetItems(Index: TListSize): TCustomWideSpeedButton;
 
 // Override of TList to return a TCustomWideSpeedButton type
 
@@ -3403,7 +3403,7 @@ begin
   end
 end;
 
-procedure TVirtualButtonList.SetItems(Index: integer; const Value: TCustomWideSpeedButton);
+procedure TVirtualButtonList.SetItems(Index: TListSize; const Value: TCustomWideSpeedButton);
 
 // Override of TList to set a TCustomWideSpeedButton type (not necessary but good practice
 // in overriding properties)
@@ -3415,7 +3415,7 @@ end;
 
 { TVirtualShellButtonList }
 
-function TVirtualShellButtonList.AddButton(Index: integer): TCustomWideSpeedButton;
+function TVirtualShellButtonList.AddButton(Index: TListSize): TCustomWideSpeedButton;
 begin
   Toolbar.BeginUpdate;
   Result := inherited AddButton(Index);
@@ -3437,7 +3437,7 @@ begin
   Result.Parent := Toolbar;
 end;
 
-function TVirtualShellButtonList.GetItems(Index: integer): TShellToolButton;
+function TVirtualShellButtonList.GetItems(Index: TListSize): TShellToolButton;
 
 // Override of TVirtualButtonList to return a TCustomWideSpeedButton type decendant, TShellToolButton
 
@@ -3445,7 +3445,7 @@ begin
   Result := TShellToolButton( inherited Items[Index])
 end;
 
-procedure TVirtualShellButtonList.SetItems(Index: integer; const Value: TShellToolButton);
+procedure TVirtualShellButtonList.SetItems(Index: TListSize; const Value: TShellToolButton);
 
 // Override of TVirtualButtonList to set a TShellToolButton type (not necessary but
 // good practice in overriding properties)
