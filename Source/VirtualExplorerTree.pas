@@ -1391,6 +1391,7 @@ type
     procedure AfterValidEnumIDList(Sender: TObject);
     procedure CollapseNamespaceFolder(Node: PVirtualNode);
     procedure CreateWnd; override;
+    procedure CleanUpPasteOperation(IsInternalMove: Boolean);
     procedure DefineProperties(Filer: TFiler); override;
     procedure DeleteNodeByPIDL(PIDL: PItemIDList);
     procedure DestroyWnd; override;
@@ -1413,6 +1414,7 @@ type
     function DoCreateDataObject: IDataObject; override;
     procedure DoCustomColumnCompare(Column: TColumnIndex; Node1, Node2: PVirtualNode; var Result: integer); virtual;
     procedure DoCustomNamespace(AParentNode: PVirtualNode); virtual;
+    procedure DoStartDrag(var DragObject: TDragObject); override;
     procedure DoEndDrag(Target: TObject; X, Y: Integer); override;
     procedure DoEdit; override;
     procedure DoEnumFolder(const Namespace: TNamespace; var AllowAsChild: Boolean); virtual;
@@ -3551,6 +3553,31 @@ begin
   end;
 end;
 
+procedure TCustomVirtualExplorerTree.CleanUpPasteOperation(IsInternalMove: Boolean);
+var
+  Run, RunParent: PVirtualNode;
+begin
+  RunParent := nil;  // used to avoid multiple refreshes of the same nodes
+  Run := RootNode.FirstChild;
+
+  while Assigned(Run) do
+  begin
+    if vsCutOrCopy in Run.States then
+    begin
+      Exclude(Run.States, vsCutOrCopy);
+      if IsInternalMove and (Run.Parent <> RootNode) and (Run.Parent <> RunParent) then  
+      begin
+        RunParent := Run.Parent;      
+        ReReadAndRefreshNode(Run.Parent, not (foNonFolders in FileObjects));
+      end;
+    end;
+    
+    Run := GetNextNoInit(Run);
+  end;
+  
+  DoStateChange([], [tsCutPending, tsCopyPending]);
+end;
+
 procedure TCustomVirtualExplorerTree.Clear;
 const
   ClipboardStates = [tsCopyPending, tsCutPending];
@@ -4109,6 +4136,7 @@ procedure TCustomVirtualExplorerTree.DoContextMenuAfterCmd(
   Successful: Boolean);
 var
   AVerb: string;
+  Node: PVirtualNode;
 begin
   if Assigned(OnContextMenuAfterCmd) then
     OnContextMenuAfterCmd(Self, Namespace, Verb, MenuItemID, Successful);
@@ -4116,9 +4144,30 @@ begin
   begin
     AVerb := SysUtils.AnsiLowerCase(Verb);
     if AVerb = 'cut' then
-      MarkNodesCut;
-    if AVerb = 'copy' then
-      MarkNodesCopied;
+      MarkNodesCut
+    else if AVerb = 'copy' then
+      MarkNodesCopied
+    else if AVerb = 'delete' then
+    begin
+      Node := WalkPIDLToNode(Namespace.Parent.AbsolutePIDL, False, False, False, False);      
+      if Assigned(Node) then
+        TThread.ForceQueue(nil, procedure
+        begin
+          ReReadAndRefreshNode(Node, False);
+        end);
+    end
+    else if AVerb = 'paste' then
+    begin
+      // In many cases the folder your are pasting on is not updated
+      Node := WalkPIDLToNode(Namespace.AbsolutePIDL, False, False, False, False);
+      if Assigned(Node) then
+        TThread.ForceQueue(nil, procedure
+        begin
+          ReReadAndRefreshNode(Node, not (foNonFolders in FileObjects));
+          if ([tsCutPending, tsCopyPending] * TreeStates) <> [] then          
+            CleanUpPasteOperation(tsCutPending in TreeStates)
+        end);
+    end;
   end
 end;
 
@@ -4197,7 +4246,7 @@ procedure TCustomVirtualExplorerTree.DoEndDrag(Target: TObject; X,
 begin
   inherited;
   Invalidate;
-  Update
+  Update;
 end;
 
 function TCustomVirtualExplorerTree.DoEndEdit(pCancel: Boolean = False): Boolean;
@@ -4717,7 +4766,7 @@ begin
   if Result then
     case CharCode of
       VK_F5: RefreshTree(toRestoreTopNodeOnRefresh in TreeOptions.VETMiscOptions);
-      VK_F3: RefreshNode(GetFirstSelected);
+      VK_F3: ReReadAndRefreshNode(GetFirstSelected, not (foNonFolders in FileObjects));
       VK_DELETE: DeleteSelectedNodes;
       VK_SPACE:
         if Assigned(FocusedNode) and (Shift * [ssShift, ssAlt] = []) then
@@ -5000,6 +5049,12 @@ begin
     OnShellNotify(Self, ShellEvent)
 end;
 
+procedure TCustomVirtualExplorerTree.DoStartDrag(var DragObject: TDragObject);
+begin
+  MarkCutCopyNodes;
+  inherited DoStartDrag(DragObject);
+end;
+
 procedure TCustomVirtualExplorerTree.DoTreeDblClick(Button: TMouseButton;
   Position: TPoint);
 var
@@ -5060,8 +5115,16 @@ begin
           else
             Effect := LastDragEffect; // We always get all DROPEFFECT constants for some reason?????
           Result := NS.Drop(DataObject, KeyState, Pt, Effect);
+          if Result = S_OK then
+            TThread.ForceQueue(nil, procedure
+              begin
+                ReReadAndRefreshNode(LocalDropTargetNode, not (foNonFolders in FileObjects));
+                CleanUpPasteOperation((LastDragEffect = DROPEFFECT_MOVE) and
+                  (TVTDragManager.GetTreeFromDataObject(DataObject) = Self));          
+              end);
         end;
-      end
+      end;
+
     finally
       LastDropTargetNode := nil;
       FDropping := False;
@@ -6150,12 +6213,14 @@ begin
           if ValidateNamespace(GetFirstSelected, NS) then
           begin
             NSA[0] := NS;
-            NS.Paste(Self, NSA);
-            Result := True
+            Result := NS.Paste(Self, NSA);
           end
         end
       end else
-        Result := True
+        Result := True;
+        
+      if Result then
+        CancelCutOrCopy;
     finally
       WaitCursor(False)
     end
@@ -6682,7 +6747,7 @@ end;
 
 procedure TCustomVirtualExplorerTree.SelectedFilesDelete(ShiftKeyState: TExecuteVerbShift = evsCurrent);
 var
-  Node: PVirtualNode;
+  Node, ParentNode: PVirtualNode;
   NS: TNamespace;
 begin
   if not (toVETReadOnly in TreeOptions.VETMiscOptions) then
@@ -6690,9 +6755,12 @@ begin
     WaitCursor(True);
     try
       Node := GetFirstSelected;
-      if Assigned(Node) then
-        if ValidateNamespace(Node, NS) then
-          NS.Delete(Self, SelectedToNamespaceArray, ShiftKeyState)
+      if Assigned(Node) and ValidateNamespace(Node, NS) then
+      begin  
+        ParentNode := Node.Parent;
+        NS.Delete(Self, SelectedToNamespaceArray, ShiftKeyState);
+        ReReadAndRefreshNode(ParentNode, False);
+      end;
     finally
       WaitCursor(False)
     end
@@ -7342,7 +7410,7 @@ function TCustomVirtualExplorerTree.ValidateNamespace(Node: PVirtualNode;
   var Namespace: TNamespace): Boolean;
 { By making the Namespace a var it eliminates the compiler warning of variable  }
 { not initialized when calling this function.                                   }
-{ Validates and assigns the TNamespace object assiciated with the TreeNode.     }
+{ Validates and assigns the TNamespace object associated with the TreeNode.     }
 var
   NewNodeData: PNodeData;
 begin
@@ -7867,7 +7935,7 @@ begin
                         WS := WideExtractFileDrive(NS.NameForParsing);
                         MappedDriveNotification := WideIsDrive(WS) and (GetDriveType(PWideChar(WS)) = DRIVE_REMOTE);
                         if MappedDriveNotification then
-                          RereadAndRefreshNode(FindNodeByPIDL(ShellEvent.PIDL1), not(foNonFolders in FileObjects))
+                          RereadAndRefreshNode(FindNodeByPIDL(ShellEvent.PIDL1), not (foNonFolders in FileObjects))
                       end;
                       NS.Free
                     end;
@@ -7907,10 +7975,10 @@ begin
                             begin
                               WasSelected := Selected[Node];
                               Node := InternalWalkPIDLToNode(ShellEvent.ParentPIDL1);
-                              RereadAndRefreshNode(Node, not(foNonFolders in FileObjects));
+                              RereadAndRefreshNode(Node, not (foNonFolders in FileObjects));
                               Selected[InternalWalkPIDLToNode(ShellEvent.PIDL2)] := WasSelected
                             end else
-                              RereadAndRefreshNode(Node, not(foNonFolders in FileObjects));
+                              RereadAndRefreshNode(Node, not (foNonFolders in FileObjects));
                           end;
                         vsneDriveAdd,         // Mapping a network drive
                         vsneDriveAddGUI,      // CD inserted shell should create new window
@@ -7918,7 +7986,7 @@ begin
                           begin
                             Node := InternalWalkPIDLToNode(ShellEvent.ParentPIDL1);
                             if Assigned(Node) then
-                              RereadAndRefreshNode(Node, not(foNonFolders in FileObjects))
+                              RereadAndRefreshNode(Node, not (foNonFolders in FileObjects))
                           end;
                         vsneMediaInserted,    // New CD, Jazz Drive, Memory card etc. inserted.
                         vsneMediaRemoved:     // New CD, Jazz Drive, Memory card etc. removed
@@ -7952,7 +8020,7 @@ begin
                               Node := InternalWalkPIDLToNode(ShellEvent.ParentPIDL1)
                             else
                               Node := InternalWalkPIDLToNode(ShellEvent.PIDL1);
-                            RereadAndRefreshNode(Node, not(foNonFolders in FileObjects))
+                            RereadAndRefreshNode(Node, not (foNonFolders in FileObjects))
                           end;
 
                         // This notification is sent when a namespace has been mapped to a
