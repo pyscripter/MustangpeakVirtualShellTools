@@ -3565,18 +3565,19 @@ begin
     if vsCutOrCopy in Run.States then
     begin
       Exclude(Run.States, vsCutOrCopy);
-      if IsInternalMove and (Run.Parent <> RootNode) and (Run.Parent <> RunParent) then  
+      if IsInternalMove and (Run.Parent <> RootNode) and (Run.Parent <> RunParent) then
       begin
-        RunParent := Run.Parent;      
+        RunParent := Run.Parent;
         ReReadAndRefreshNode(Run.Parent, not (foNonFolders in FileObjects));
         Run := RunParent;
       end;
     end;
-    
+
     Run := GetNextNoInit(Run);
   end;
-  
+
   DoStateChange([], [tsCutPending, tsCopyPending]);
+  Invalidate;
 end;
 
 procedure TCustomVirtualExplorerTree.Clear;
@@ -4248,6 +4249,11 @@ begin
   inherited;
   Invalidate;
   Update;
+  TThread.ForceQueue(nil, procedure
+  begin
+    CancelCutOrCopy;
+    Invalidate;
+  end);
 end;
 
 function TCustomVirtualExplorerTree.DoEndEdit(pCancel: Boolean = False): Boolean;
@@ -5052,7 +5058,7 @@ end;
 
 procedure TCustomVirtualExplorerTree.DoStartDrag(var DragObject: TDragObject);
 begin
-  MarkCutCopyNodes;
+  MarkNodesCopied;
   inherited DoStartDrag(DragObject);
 end;
 
@@ -6221,7 +6227,10 @@ begin
         Result := True;
         
       if Result then
+      begin
         CancelCutOrCopy;
+        Invalidate;
+      end;
     finally
       WaitCursor(False)
     end
