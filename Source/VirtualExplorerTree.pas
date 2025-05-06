@@ -3569,6 +3569,7 @@ begin
       begin
         RunParent := Run.Parent;      
         ReReadAndRefreshNode(Run.Parent, not (foNonFolders in FileObjects));
+        Run := RunParent;
       end;
     end;
     
@@ -15518,7 +15519,7 @@ begin
   NS := TNamespace.Create(PIDL, nil);
   try
     NS.FreePIDLOnDestroy := False;
-      // Tag contains the SHCONTF_XXXX flags
+    // Tag contains the SHCONTF_XXXX flags
     FShowMark := NS.SubItemsEx(EnumFlags)
   finally
     NS.Free
